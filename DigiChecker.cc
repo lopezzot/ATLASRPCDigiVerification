@@ -11,6 +11,7 @@ DigiChecker::DigiChecker(const std::string& LegacyDigiFileName, const std::strin
                                       : "Run3Digitization"),
     NLabel(std::getenv("Run4Label") ? std::string(std::getenv("Run4Label")) : "Run4Digitization")
 {
+  PrintLabels();
   LDFile = TFile::Open(LegacyDigiFileName.c_str(), "READ");
   NDFile = TFile::Open(NewDigiFileName.c_str(), "READ");
   OutFile = TFile::Open("ATLSRPCDigiValidation.root", "RECREATE");

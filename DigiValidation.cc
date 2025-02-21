@@ -26,7 +26,6 @@ int main(int argc, char* argv[])
     return 1;
   }
   DigiChecker theDigiChecker(argv[1], argv[2]);
-  theDigiChecker.PrintLabels();
 
   std::cout << "bye bye" << std::endl;
   return 0;
