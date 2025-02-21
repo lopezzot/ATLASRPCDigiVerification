@@ -8,7 +8,9 @@ Definition of the DigiChecker class
 
 // Includers from STL
 //
+#include <cstdlib>
 #include <iostream>
+#include <string>
 
 class DigiChecker
 {
@@ -19,9 +21,17 @@ class DigiChecker
     DigiChecker() = delete;
     DigiChecker(const std::string& LegacyDigiFileName, const std::string& NewDigiFileName);
     ~DigiChecker();
+    void PrintLabels() const;
 
   private:
     TFile* LDFile = nullptr;  // LegacyDigiFile
     TFile* NDFile = nullptr;  // NewDigiFile
     TFile* OutFile = nullptr;  // Output file
+    std::string LLabel;  // Label for legacy digitization plots
+    std::string NLabel;  // Label for run4 digitization plots
+};
+
+inline void DigiChecker::PrintLabels() const
+{
+  std::cout << "DigiChecker using plot labels: " << LLabel << " " << NLabel << std::endl;
 };

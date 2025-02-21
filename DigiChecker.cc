@@ -7,6 +7,9 @@ Implementation of the DigiChecker class
 #include "DigiChecker.hh"
 
 DigiChecker::DigiChecker(const std::string& LegacyDigiFileName, const std::string& NewDigiFileName)
+  : LLabel(std::getenv("LegacyLabel") ? std::string(std::getenv("LegacyLabel"))
+                                      : "Run3Digitization"),
+    NLabel(std::getenv("Run4Label") ? std::string(std::getenv("Run4Label")) : "Run4Digitization")
 {
   LDFile = TFile::Open(LegacyDigiFileName.c_str(), "READ");
   NDFile = TFile::Open(NewDigiFileName.c_str(), "READ");
