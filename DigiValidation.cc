@@ -25,7 +25,11 @@ int main(int argc, char* argv[])
     std::cerr << "Usage: " << argv[0] << " <LegacyDigiFileName> <NewDigiFileName>" << std::endl;
     return 1;
   }
-  DigiChecker theDigiChecker(argv[1], argv[2]);
+  std::string LDFileName = argv[1];  // Legacy Digi File Name
+  std::string NDFileName = argv[2];  // New Digi File Name
+  DigiChecker theDigiChecker(LDFileName, NDFileName);
+  theDigiChecker.CreateXYMap(NDFileName, "sim");
+  theDigiChecker.CreateXYMap(NDFileName, "digi");
 
   std::cout << "bye bye" << std::endl;
   return 0;
