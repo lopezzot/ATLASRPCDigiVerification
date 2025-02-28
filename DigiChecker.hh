@@ -22,6 +22,7 @@ class DigiChecker
     DigiChecker(const std::string& LegacyDigiFileName, const std::string& NewDigiFileName);
     ~DigiChecker();
     void PrintLabels() const;
+    void CreateXYMap(const std::string& aFileName, const std::string& HitType /*sim or digi*/);
 
   private:
     TFile* LDFile = nullptr;  // LegacyDigiFile
@@ -29,6 +30,8 @@ class DigiChecker
     TFile* OutFile = nullptr;  // Output file
     std::string LLabel;  // Label for legacy digitization plots
     std::string NLabel;  // Label for run4 digitization plots
+    std::string LDFileName;
+    std::string NDFileName;
 };
 
 inline void DigiChecker::PrintLabels() const
