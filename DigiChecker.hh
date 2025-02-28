@@ -23,7 +23,6 @@ class DigiChecker
     ~DigiChecker();
     void PrintLabels() const;
     void CreateXYMap(const std::string& aFileName, const std::string& HitType /*sim or digi*/);
-    void CreateYZMap(const std::string& aFileName, const std::string& HitType /*sim or digi*/);
 
   private:
     TFile* LDFile = nullptr;  // LegacyDigiFile
