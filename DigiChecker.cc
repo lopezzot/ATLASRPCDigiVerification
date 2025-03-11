@@ -52,6 +52,8 @@ DigiChecker::~DigiChecker()
 void DigiChecker::CreateXYMap(const std::string& aFileName,
                               const std::string& HitType /*sim or digi*/)
 {
+  const int stationidx = 11;
+
   TTree* tree = nullptr;
   if (aFileName == LDFileName)
     tree = (TTree*)LDFile->Get("MuonHitTest");
@@ -77,10 +79,12 @@ void DigiChecker::CreateXYMap(const std::string& aFileName,
     std::cerr << "DigiChecker::CreateXYSimMap invalid hittype: " << HitType << std::endl;
   }
 
-  int colors[] = {kRed, kBlue, kGreen, kMagenta, kCyan, kOrange, kBlack};
+  // int colors[] = {kRed, kBlue, kGreen, kMagenta, kCyan, kOrange, kBlack};
+  int colors[] = {kRed,   kBlue,   kGreen,  kMagenta, kCyan,  kOrange,
+                  kBlack, kViolet, kYellow, kGray,    kSpring};
   TMultiGraph* mg = new TMultiGraph();
-  std::vector<TGraph*> graphs(7, nullptr);
-  for (int i = 0; i < 7; i++) {
+  std::vector<TGraph*> graphs(stationidx, nullptr);
+  for (int i = 0; i < stationidx; i++) {
     graphs[i] = new TGraph();
     graphs[i]->SetMarkerStyle(20);
     graphs[i]->SetMarkerSize(0.5);
@@ -96,7 +100,7 @@ void DigiChecker::CreateXYMap(const std::string& aFileName,
     size_t nHits = x->size();
     for (size_t j = 0; j < nHits; j++) {
       int st = static_cast<int>((*stationindex)[j]);  // Convert char to int
-      if (st >= 0 && st < 7) {  // Ensure station index is valid
+      if (st >= 0 && st < stationidx) {  // Ensure station index is valid
         graphs[st]->SetPoint(graphs[st]->GetN(), (*x)[j], (*y)[j]);
       }
       else {
@@ -107,7 +111,7 @@ void DigiChecker::CreateXYMap(const std::string& aFileName,
   }
 
   // Add graphs to the multigraph
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < stationidx; i++) {
     if (graphs[i]->GetN() > 0) {  // skip graphs with no points (avoid error)
       mg->Add(graphs[i], "P");  // "P" means points
     }
@@ -123,7 +127,7 @@ void DigiChecker::CreateXYMap(const std::string& aFileName,
 
   // Add legend
   TLegend* leg = new TLegend(0.7, 0.7, 0.9, 0.9);
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < stationidx; i++) {
     leg->AddEntry(graphs[i], Form("Station index %d", i), "p");
   }
   leg->Draw();
