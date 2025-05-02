@@ -38,6 +38,8 @@ void save_timefactor(const std::vector<double>& V, double dt, const std::string&
     }
 }
 
+#define wLOSS
+
 int main() {
     // --- Parameters for grid and transmission line ---
     const int N = 500;        // Numero di punti griglia
@@ -45,6 +47,9 @@ int main() {
     const double dx = length / (N - 1); // Passo spaziale (m) (segmento di linea)
     const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
     const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
+    #ifdef wLOSS
+    const double R = 100.0;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
+    #endif
     const double Z0 = std::sqrt(L / C); // Impedenza caratteristica (Ohm)
 
     // --- Parametri Temporali e Stabilità ---
@@ -78,6 +83,12 @@ int main() {
     std::cout << " J_peak = " << J_peak << " A/m" << std::endl;
     std::cout << "----------------------------------" << std::endl;
 
+    #ifdef wLOSS
+    std::cout << "--- Including resistivity --" << std::endl;
+    std::cout << " R = " << R << " Ohm/m" << std::endl;
+    std::cout << "----------------------------------" << std::endl;
+    #endif
+
     // Vettori Tensione e Corrente - Inizializzati a zero
     std::vector<double> V(N, 0.0), V_new(N, 0.0);
     std::vector<double> I(N, 0.0), I_new(N, 0.0); // I[i] è tra i e i+1
@@ -99,14 +110,24 @@ int main() {
     const double const_V = dt / (C * dx); // dt/(C*dx)
     const double const_Source = dt / C;   // dt/C per termine sorgente
 
+    #ifdef wLOSS
+    const double denom_I = 1.0 + R * dt / (2.0 * L);
+    const double cI1 = (1.0 - R * dt / (2.0 * L)) / denom_I;
+    const double cI2 = (dt / (L * dx)) / denom_I;
+    #endif
+
     // --- Loop Temporale FDTD ---
     for (int step = 0; step < steps; ++step) {
 
         // Aggiorna Corrente I (da i=0 a N-2) -> I_new è I^{n+1/2}
         for (int i = 0; i < N - 1; ++i) {
+            #ifndef wLOSS
             I_new[i] = I[i] - const_I * (V[i + 1] - V[i]);
+            #endif
+            #ifdef wLOSS
+            I_new[i] = cI1 * I[i] - cI2 * (V[i + 1] - V[i]);
+            #endif
         }
-
         // Aggiorna Tensione V (punti interni: da i=1 a N-2) -> V_new è V^{n+1} parziale
         // V^{n+1}_i = V^n_i - (dt/C*dx) * (I^{n+1/2}_{i+1/2} - I^{n+1/2}_{i-1/2})
         for (int i = 1; i < N - 1; ++i) {
