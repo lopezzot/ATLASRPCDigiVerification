@@ -48,19 +48,20 @@ int main() {
     const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
     const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
     #ifdef wLOSS
-    const double R = 100.0;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
+    const double R = 1.0;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
     #endif
     const double Z0 = std::sqrt(L / C); // Impedenza caratteristica (Ohm)
-
+    const double R_L = Z0; // <<< NUOVA RIGA: Resistenza di carico ai bordi [Ohm] - Assumiamo adattata
+                         //
     // --- Parametri Temporali e Stabilità ---
     const double v = 1.0 / std::sqrt(L * C); // Velocità di propagazione (m/s)
     const double dt = 0.95 * dx / v;         // Passo temporale (s) - Fattore CFL 0.95
     const double mur_const = (v * dt - dx) / (v * dt + dx); // Costante BC Mur
 
     // --- Parametri Simulazione ---
-    const double T = 1.0 * (length / v); // Max time of computing
+    const double T = 2.0 * (length / v); // Max time of computing
     const int steps = static_cast<int>(T / dt);
-    const int snapshot_interval = steps / 10; // Salva circa 100 snapshot
+    const int snapshot_interval = steps / 20; // Salva circa 100 snapshot
     const double output_precision = 1e-4; // Soglia per considerare V trascurabile e terminare programma
 
     // --- Parametri Sorgente RPC Realistica ---
@@ -114,6 +115,24 @@ int main() {
     const double denom_I = 1.0 + R * dt / (2.0 * L);
     const double cI1 = (1.0 - R * dt / (2.0 * L)) / denom_I;
     const double cI2 = (dt / (L * dx)) / denom_I;
+
+     // <<< NUOVO BLOCCO: Costanti per BC Resistiva (G=0) >>>
+    double cV1_bc = 0.0, cV2_bc = 0.0;
+    const double R_load = R_L; // Usa R_L definita sopra
+    if (std::abs(R_load) > 1e-18) { // Evita divisione per zero se R_L=0 (cortocircuito)
+        const double c1_bc = C * dx / dt;
+        const double c2_bc = 1.0 / (2.0 * R_load);
+        const double den_bc = c1_bc + c2_bc;
+        if (std::abs(den_bc) < 1e-18) {
+             std::cerr << "Errore: den_bc (BC coeff) vicino a zero." << std::endl; return 1;
+        }
+        cV1_bc = (c1_bc - c2_bc) / den_bc;
+        cV2_bc = 1.0 / den_bc;
+    } else {
+        // Se R_L == 0 (cortocircuito), V al bordo è forzato a 0
+        cV1_bc = 0.0;
+        cV2_bc = 0.0; // V sarà 0
+    }
     #endif
 
     // --- Loop Temporale FDTD ---
@@ -171,6 +190,7 @@ int main() {
             }
         }
 
+        #ifndef wLOSS
         // Applica BC assorbenti di Mur per V[0] e V[N-1] (sovrascrive V_new ai bordi)
         // Usa V (valori a n) e V_new (valori a n+1 dei punti interni già calcolati)
         V_new[0] = V[1] + mur_const * (V_new[1] - V[0]);
@@ -179,7 +199,28 @@ int main() {
             V_new[N - 1] = V[N - 2] + mur_const * (V_new[N - 2] - V[N - 1]);
         } else {
              V_new[0] = 0; // Caso N=1
-        } // fine boundary condition
+        } // fine boundary condition*/
+        #endif
+ 
+        #ifdef wLOSS
+        // <<< INIZIO BLOCCO BC RESISTIVE (sostituisce il blocco Mur) >>>
+        if (std::abs(R_L) < 1e-18) { // Cortocircuito
+          if (N > 0) V_new[0] = 0.0;
+          if (N > 1) V_new[N - 1] = 0.0;
+        }
+        else { // Carico resistivo finito
+            // Bordo Sinistro (V_new[0]) - Usa V[0], I_new[0]
+            if (N > 1) {
+             V_new[0] = cV1_bc * V[0] - cV2_bc * I_new[0];
+            } else if (N == 1) { V_new[0] = 0; } // Non dovrebbe succedere con N=500
+
+          // Bordo Destro (V_new[N-1]) - Usa V[N-1], I_new[N-2]
+          if (N > 1) {
+          V_new[N - 1] = cV1_bc * V[N - 1] + cV2_bc * I_new[N - 2];
+          }
+        }
+        // <<< FINE BLOCCO BC RESISTIVE >>>
+        #endif
 
         // Tempo effettivo alla fine dello step
         double t_output = (step + 1) * dt;
