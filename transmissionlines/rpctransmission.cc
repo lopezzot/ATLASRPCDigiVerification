@@ -94,8 +94,8 @@ int main() {
     #endif
 
     // Vettori Tensione e Corrente - Inizializzati a zero
-    std::vector<double> V(N, 0.0), V_new(N, 0.0);
-    std::vector<double> I(N, 0.0), I_new(N, 0.0); // I[i] è tra i e i+1
+    std::vector<double> V(N, 0.0), V_new(N-1, 0.0);
+    std::vector<double> I(N, 0.0), I_new(N-1, 0.0); // I[i] è tra i e i+1
     std::vector<double> J(N, 0.0); // input densità di corrente [A/m] dalla scarica degli rpc
     std::vector<double> time_factor(0.0);
 
@@ -247,12 +247,12 @@ int main() {
         // Scrivi su file snapshot
         if (t_output < 1.5*tau && step % 2 == 0){ 
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
-           save_profile(I_new, t_output_forcurrent, N, dx, "I"); // Passa N e dx
+           save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
         }
         if ((t_output > 1.5*tau && step % snapshot_interval == 0) || step == steps -1 ) { // Salva anche l'ultimo
            // std::cout << "Salvataggio snapshot a t = " << t_output*1e9 << " ns (step " << step << ")" << std::endl;
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
-           save_profile(I_new, t_output_forcurrent, N, dx, "I"); // Passa N e dx
+           save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
         }
 
         // Aggiorna stato per il prossimo ciclo
