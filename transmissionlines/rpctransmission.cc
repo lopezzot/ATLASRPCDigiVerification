@@ -43,7 +43,7 @@ void save_timefactor(const std::vector<double>& V, double dt, const std::string&
 
 int main() {
     // --- Parameters for grid and transmission line ---
-    const int N = 500;        // Numero di punti griglia
+    const int N = 4000;        // Numero di punti griglia
     const double length = 2.0; // Lunghezza fisica striscia (m)
     const double dx = length / (N - 1); // Passo spaziale (m) (segmento di linea)
     const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
