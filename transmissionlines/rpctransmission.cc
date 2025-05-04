@@ -38,20 +38,72 @@ void save_timefactor(const std::vector<double>& V, double dt, const std::string&
     }
 }
 
+struct rpcoutput{
+
+    // metadata needed as input
+    double length; // m
+    int N;
+    double R; // ohm/m
+    double tau; //s
+    double threshold; // V
+
+    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold){
+        length=aLength;
+        N=aN;
+        R=aR;
+        tau=aTau;
+        threshold=aThreshold;
+    };
+    
+    // data from simulation output
+    double time_left; // s
+    double time_right; // s
+    double tot_left; // time-over-threshold left (s)
+    double tot_right; // time-over-threshold right (s)
+
+    void add_output(double aTL, double aTR, double aTOTleft, double aTOTright){
+        time_left = aTL;
+        time_right = aTR;
+        tot_left = aTOTleft;
+        tot_right = aTOTright;
+    };
+
+    // fields and methods for file creation
+    std::string fileName = "output_rpc.txt";
+    void set_filename(std::string& aString){ fileName = aString; };
+
+    void rpcoutput_tofile(bool append_output){
+        std::ostringstream filename;
+        filename << fileName;
+        std::ofstream out;
+        if(!append_output) out.open(filename.str());
+        else out.open(filename.str(), std::ios::app);
+        if (!out) {
+            std::cerr << "Error while opening the file: " << filename.str() << std::endl;
+            return;
+        }
+        out << std::fixed << std::setprecision(6);
+
+        // Save both input and output fields
+        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\n";
+        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\n";
+    }
+};
+
 #define wLOSS
 //#define MURBC
 
-int main() {
+void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, std::string output_name = "output_rpc.txt", bool append_output = false) {
     // --- Parameters for grid and transmission line ---
-    const int N = 4000;        // Numero di punti griglia
-    const double length = 2.0; // Lunghezza fisica striscia (m)
+    const int N = aN;        // Numero di punti griglia
+    const double length = aLength; // Lunghezza fisica striscia (m)
     const double dx = length / (N - 1); // Passo spaziale (m) (segmento di linea)
     const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
     //const double L = 2.08e-7;   // Induttanza per unità di lunghezza (H/m)
     const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
     //const double C = 0.83e-10;  // Capacità per unità di lunghezza (F/m)
     #ifdef wLOSS
-    const double R = 1.0;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
+    const double R = aR;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
     #endif
     const double Z0 = std::sqrt(L / C); // Impedenza caratteristica (Ohm)
     const double R_L = Z0; // <<< NUOVA RIGA: Resistenza di carico ai bordi [Ohm] - Assumiamo adattata
@@ -72,7 +124,7 @@ int main() {
     const double x_source = length / 2.0; // Posizione sorgente (es. 1/3 della lunghezza) (m)
     const double sigma_x = 20e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
     const double t_start = 0.;//10e-9;        // Tempo inizio impulso sorgente (s) (es. 10 ns)
-    const double tau = 0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
+    const double tau = aTau;//0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
     const double J_peak = -5e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
 
     std::cout << "--- Parametri Simulazione RPC ---" << std::endl;
@@ -101,7 +153,7 @@ int main() {
 
     // Variabili per rilevamento bordi
     //const double threshold = std::abs(J_peak * Z0 * 0.1); // probably an error, (A/m)*ohm)=V/m cannot compare with V Soglia dinamica (es. 10% ampiezza stimata)
-    const double threshold = 0.001; // V
+    const double threshold = aThreshold;//0.001; // V
     bool reached_left = false, reached_right = false;
     double time_left = -1.0, time_right = -1.0; // Inizializza a -1
     bool reached_left_two = false, reached_right_two = false;
@@ -131,7 +183,8 @@ int main() {
         const double c2_bc = 1.0 / (2.0 * R_load);
         const double den_bc = c1_bc + c2_bc;
         if (std::abs(den_bc) < 1e-18) {
-             std::cerr << "Errore: den_bc (BC coeff) vicino a zero." << std::endl; return 1;
+             std::cerr << "Errore: den_bc (BC coeff) vicino a zero." << std::endl;
+             std::abort();
         }
         cV1_bc = (c1_bc - c2_bc) / den_bc;
         cV2_bc = 1.0 / den_bc;
@@ -307,6 +360,77 @@ int main() {
         std::cout << "Time over threshold a destra: " << (time_right_two - time_right) * 1e9 << "ns\n";
 
     std::cout << "Velocità teorica di propagazione: " << v << " m/s\n";
+
+    rpcoutput thisOutput;
+    thisOutput.add_metadata(length, N, R, tau, threshold);
+    thisOutput.add_output(time_left, time_right, time_left_two-time_left, time_right_two-time_right);
+    thisOutput.set_filename(output_name);
+    thisOutput.rpcoutput_tofile(append_output);
+
+}
+
+void print_usage(const char* progName) {
+    std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)]\n"
+              << "Tutti i parametri sono opzionali e hanno dei valori di default.\n";
+}
+
+int main(int argc, char* argv[]) {
+    // Valori di default
+    double aLength = 2.0;
+    int aN = 4000;
+    double aR = 1.0;
+    double aTau = 0.5e-9;
+    double aThreshold = 0.001;
+
+    // Parsing degli argomenti
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "--help" || arg == "-h") {
+            print_usage(argv[0]);
+            return 0;
+        } else if (arg == "--aLength" && i + 1 < argc) {
+            aLength = atof(argv[++i]);
+        } else if (arg == "--aN" && i + 1 < argc) {
+            aN = atoi(argv[++i]);
+        } else if (arg == "--aR" && i + 1 < argc) {
+            aR = atof(argv[++i]);
+        } else if (arg == "--aTau" && i + 1 < argc) {
+            aTau = atof(argv[++i]);
+        } else if (arg == "--aThreshold" && i + 1 < argc) {
+            aThreshold = atof(argv[++i]);
+        } else {
+            std::cerr << "Argomento non riconosciuto o mancante valore: " << arg << "\n";
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    //process_rpc_signal(aLength, aN, aR, aTau, aThreshold);
+    
+    // Study behaviour as a function of threshold
+    std::string outputname = "threshold.txt";
+    for(std::size_t i=0; i<10; i++){
+        double newThreshold = 0.001 + i*0.0005; // V
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, outputname, true);
+    }
+
+    // Study behaviour as a function of tau
+    std::string outputname = "tau.txt";
+    for(std::size_t i=0; i<10; i++){
+        double newTau = 0.1e-9 + i*0.05e-9; // s
+        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname);
+        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname, true);
+    }
+
+    // Study behaviour as a function of length
+    std::string outputname = "length.txt";
+    for(std::size_t i=0; i<20; i++){
+        double newLength = 1.0 + i*0.1; // m
+        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname);
+        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname, true);
+    }
 
     return 0;
 }
