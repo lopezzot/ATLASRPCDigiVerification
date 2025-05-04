@@ -417,15 +417,15 @@ int main(int argc, char* argv[]) {
     }
 
     // Study behaviour as a function of tau
-    std::string outputname = "tau.txt";
-    for(std::size_t i=0; i<10; i++){
+    outputname = "tau.txt";
+    for(std::size_t i=0; i<30; i++){
         double newTau = 0.1e-9 + i*0.05e-9; // s
         if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname);
         else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname, true);
     }
 
     // Study behaviour as a function of length
-    std::string outputname = "length.txt";
+    outputname = "length.txt";
     for(std::size_t i=0; i<20; i++){
         double newLength = 1.0 + i*0.1; // m
         if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname);
