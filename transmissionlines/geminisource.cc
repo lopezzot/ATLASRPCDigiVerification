@@ -39,6 +39,7 @@ void save_timefactor(const std::vector<double>& V, double dt, const std::string&
 }
 
 #define wLOSS
+//#define MURBC
 
 int main() {
     // --- Parameters for grid and transmission line ---
@@ -46,13 +47,15 @@ int main() {
     const double length = 2.0; // Lunghezza fisica striscia (m)
     const double dx = length / (N - 1); // Passo spaziale (m) (segmento di linea)
     const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
+    //const double L = 2.08e-7;   // Induttanza per unità di lunghezza (H/m)
     const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
+    //const double C = 0.83e-10;  // Capacità per unità di lunghezza (F/m)
     #ifdef wLOSS
     const double R = 1.0;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
     #endif
     const double Z0 = std::sqrt(L / C); // Impedenza caratteristica (Ohm)
     const double R_L = Z0; // <<< NUOVA RIGA: Resistenza di carico ai bordi [Ohm] - Assumiamo adattata
-                         //
+
     // --- Parametri Temporali e Stabilità ---
     const double v = 1.0 / std::sqrt(L * C); // Velocità di propagazione (m/s)
     const double dt = 0.95 * dx / v;         // Passo temporale (s) - Fattore CFL 0.95
@@ -115,8 +118,10 @@ int main() {
     const double denom_I = 1.0 + R * dt / (2.0 * L);
     const double cI1 = (1.0 - R * dt / (2.0 * L)) / denom_I;
     const double cI2 = (dt / (L * dx)) / denom_I;
+    #endif
 
-     // <<< NUOVO BLOCCO: Costanti per BC Resistiva (G=0) >>>
+    #ifndef MURBC
+    // <<< NUOVO BLOCCO: Costanti per BC Resistiva (G=0) >>>
     double cV1_bc = 0.0, cV2_bc = 0.0;
     const double R_load = R_L; // Usa R_L definita sopra
     if (std::abs(R_load) > 1e-18) { // Evita divisione per zero se R_L=0 (cortocircuito)
@@ -190,7 +195,7 @@ int main() {
             }
         }
 
-        #ifndef wLOSS
+        #ifdef MURBC
         // Applica BC assorbenti di Mur per V[0] e V[N-1] (sovrascrive V_new ai bordi)
         // Usa V (valori a n) e V_new (valori a n+1 dei punti interni già calcolati)
         V_new[0] = V[1] + mur_const * (V_new[1] - V[0]);
@@ -199,10 +204,10 @@ int main() {
             V_new[N - 1] = V[N - 2] + mur_const * (V_new[N - 2] - V[N - 1]);
         } else {
              V_new[0] = 0; // Caso N=1
-        } // fine boundary condition*/
+        } // fine boundary condition
         #endif
  
-        #ifdef wLOSS
+        #ifndef MURBC
         // <<< INIZIO BLOCCO BC RESISTIVE (sostituisce il blocco Mur) >>>
         if (std::abs(R_L) < 1e-18) { // Cortocircuito
           if (N > 0) V_new[0] = 0.0;
