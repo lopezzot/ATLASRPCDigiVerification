@@ -104,6 +104,8 @@ int main() {
     const double threshold = 0.001; // V
     bool reached_left = false, reached_right = false;
     double time_left = -1.0, time_right = -1.0; // Inizializza a -1
+    bool reached_left_two = false, reached_right_two = false;
+    double time_left_two = -1.0, time_right_two = -1.0; // Inizializza a -1
 
     std::cout << "--- Threshold to detect signal at borders ---" << std::endl;
     std::cout << " threshold : " << threshold << " V " << std::endl;
@@ -237,11 +239,20 @@ int main() {
             time_left = t_output;
             // std::cout << "-> Segnale raggiunto bordo sinistro a t = " << t_output*1e9 << " ns" << std::endl;
         }
-
         if (!reached_right && std::abs(V_new[N - 1]) >= threshold) { // Usa abs per soglia
             reached_right = true;
             time_right = t_output;
             // std::cout << "-> Segnale raggiunto bordo destro a t = " << t_output*1e9 << " ns" << std::endl;
+        } // fine controllo primo arrivo ai bordi
+        
+        // Controlla secondo arrivo ai bordi for time-over-threshold
+        if (reached_left && !reached_left_two && std::abs(V_new[0]) <= threshold) {
+            reached_left_two = true;
+            time_left_two = t_output;
+        }
+        if (reached_right && !reached_right_two && std::abs(V_new[N-1]) <= threshold) {
+            reached_right_two = true;
+            time_right_two = t_output;
         }
 
         // Scrivi su file snapshot
@@ -283,11 +294,17 @@ int main() {
        std::cout << "Tempo di arrivo a sinistra: " << time_left * 1e9 << " ns\n";
     else
        std::cout << "Segnale non rilevato a sinistra (soglia=" << threshold <<").\n";
+    if (time_left_two > 0)
+        std::cout << "Tempo di discesa a sinistra: " << time_left_two * 1e9 << "ns\n";
+        std::cout << "Time over threshold a sinistra: " << (time_left_two - time_left) * 1e9 << "ns\n";
 
     if (time_right > 0)
        std::cout << "Tempo di arrivo a destra: " << time_right * 1e9 << " ns\n";
     else
        std::cout << "Segnale non rilevato a destra (soglia=" << threshold <<").\n";
+    if (time_right_two > 0)
+        std::cout << "Tempo di discesa a destra: " << time_right_two * 1e9 << "ns\n";
+        std::cout << "Time over threshold a destra: " << (time_right_two - time_right) * 1e9 << "ns\n";
 
     std::cout << "Velocità teorica di propagazione: " << v << " m/s\n";
 
