@@ -332,7 +332,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
                   // Salva ultimo stato se non già salvato
                    if (step % snapshot_interval != 0) {
                        save_profile(V, t_output, N, dx, "rpc_signal");
-                       save_profile(I, t_output_forcurrent, N, dx, "I");
+                       save_profile(I, t_output_forcurrent, N-1, dx, "I");
                    }
                   break;
              }
