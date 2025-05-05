@@ -239,7 +239,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
             for (int i = 1; i < N - 1; ++i) {
                 double x = i * dx;
                 double spatial_factor = std::exp(-std::pow((x - x_source), 2) / (2 * sigma_x * sigma_x));
-                if(step<100 && step % 5 ==0){
+                if(step<400 && step % 20 ==0){
                   J[i] = J_peak * spatial_factor * temporal_factor;
                   save_profile(J, (step+0.5)*dt, N, dx, "J"); // Passa N e dx
                 }
@@ -309,7 +309,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         }
 
         // Scrivi su file snapshot
-        if (t_output < 1.5*tau && step % 2 == 0){ 
+        if (t_output < 1.5*tau && step % 20 == 0){ 
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
            save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
         }
@@ -406,10 +406,11 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    //process_rpc_signal(aLength, aN, aR, aTau, aThreshold);
-    
+    process_rpc_signal(aLength, aN, aR, aTau, aThreshold);
+
+    std::string outputname;    
     // Study behaviour as a function of threshold
-    std::string outputname = "threshold.txt";
+  /*   outputname = "threshold.txt";
     for(std::size_t i=0; i<10; i++){
         double newThreshold = 0.001 + i*0.0005; // V
         if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, outputname);
@@ -426,11 +427,12 @@ int main(int argc, char* argv[]) {
 
     // Study behaviour as a function of length
     outputname = "length.txt";
-    for(std::size_t i=0; i<20; i++){
+    for(std::size_t i=0; i<40; i++){
         double newLength = 1.0 + i*0.1; // m
         if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname);
         else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname, true);
     }
 
+    */
     return 0;
 }
