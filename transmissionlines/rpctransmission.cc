@@ -116,7 +116,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     // --- Parametri Simulazione ---
     const double T = 2.0 * (length / v); // Max time of computing
     const int steps = static_cast<int>(T / dt);
-    const int snapshot_interval = steps / 20; // Salva circa 100 snapshot
+    int snapshot_interval = steps / 20; // Salva circa 100 snapshot
     const double output_precision = 1e-4; // Soglia per considerare V trascurabile e terminare programma
 
     // --- Parametri Sorgente RPC Realistica ---
@@ -150,6 +150,14 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::vector<double> I(N, 0.0), I_new(N-1, 0.0); // I[i] è tra i e i+1
     std::vector<double> J(N, 0.0); // input densità di corrente [A/m] dalla scarica degli rpc
     std::vector<double> time_factor(0.0);
+
+    const bool savegif = true;
+    if(savegif == true){
+      // save profiles at t=0 for GIF animation
+      save_profile(V, 0.0, N, dx, "rpc_signal");
+      save_profile(I, 0.0, N-1, dx, "I");
+      save_profile(J, 0.0, N, dx, "J"); // Passa N e dx
+    }
 
     // Variabili per rilevamento bordi
     //const double threshold = std::abs(J_peak * Z0 * 0.1); // probably an error, (A/m)*ohm)=V/m cannot compare with V Soglia dinamica (es. 10% ampiezza stimata)
@@ -236,18 +244,20 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
              temporal_factor *= std::exp(1.0); // Ora il picco è 1
              time_factor.push_back(temporal_factor);
             }
+            int Jsteplimit = 0;
             for (int i = 1; i < N - 1; ++i) {
                 double x = i * dx;
                 double spatial_factor = std::exp(-std::pow((x - x_source), 2) / (2 * sigma_x * sigma_x));
-                if(step<400 && step % 20 ==0){
+                Jsteplimit = savegif ? steps : 400;
+                if(step<=Jsteplimit && step % 20 ==0){ 
                   J[i] = J_peak * spatial_factor * temporal_factor;
-                  save_profile(J, (step+0.5)*dt, N, dx, "J"); // Passa N e dx
                 }
                 double source_current_density = J_peak * spatial_factor * temporal_factor;
 
                 // Applica a V: V_new[i] -= (dt / C) * J(x,t)
                 V_new[i] -= const_Source * source_current_density;
             }
+            if(step<=Jsteplimit && step % 20 ==0) save_profile(J, (step+0.5)*dt, N, dx, "J"); // Passa N e dx
         }
 
         #ifdef MURBC
@@ -313,6 +323,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
            save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
         }
+        if (savegif == true) snapshot_interval = 20;
         if ((t_output > 1.5*tau && step % snapshot_interval == 0) || step == steps -1 ) { // Salva anche l'ultimo
            // std::cout << "Salvataggio snapshot a t = " << t_output*1e9 << " ns (step " << step << ")" << std::endl;
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
