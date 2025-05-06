@@ -151,7 +151,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::vector<double> J(N, 0.0); // input densità di corrente [A/m] dalla scarica degli rpc
     std::vector<double> time_factor(0.0);
 
-    const bool savegif = true;
+    const bool savegif = false;
     if(savegif == true){
       // save profiles at t=0 for GIF animation
       save_profile(V, 0.0, N, dx, "rpc_signal");
