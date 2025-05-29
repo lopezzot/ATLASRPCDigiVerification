@@ -37,6 +37,25 @@ void save_timefactor(const std::vector<double>& V, double dt, const std::string&
         out << (i+0.5)*dt*1e9 << "\t" << V[i] << "\n";
     }
 }
+// Funzione per salvare l'output del Charge Sensitive Amplifier (esempio)
+void save_csa_output(const std::vector<double>& times,
+                     const std::vector<double>& csa_left,
+                     const std::vector<double>& csa_right,
+                     const std::string& filename = "csa_output.txt") {
+    std::ofstream out(filename);
+    if (!out) {
+        std::cerr << "Error opening CSA output file: " << filename << std::endl;
+        return;
+    }
+    out << std::fixed << std::setprecision(6);
+    out << "# Time (ns)\tV_CSA_Left (V)\tV_CSA_Right (V)\n";
+    for (size_t i = 0; i < times.size(); ++i) {
+        out << times[i] * 1e9 << "\t"
+            << (i < csa_left.size() ? csa_left[i] : 0.0) << "\t"
+            << (i < csa_right.size() ? csa_right[i] : 0.0) << "\n";
+    }
+    //std::cout << "CSA output saved to " << filename << std::endl;
+}
 
 struct rpcoutput{
 
@@ -114,7 +133,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double mur_const = (v * dt - dx) / (v * dt + dx); // Costante BC Mur
 
     // --- Parametri Simulazione ---
-    const double T = 2.0 * (length / v); // Max time of computing
+    const double T = 5.0 * (length / v); // Max time of computing
     const int steps = static_cast<int>(T / dt);
     int snapshot_interval = steps / 20; // Salva circa 100 snapshot
     const double output_precision = 1e-4; // Soglia per considerare V trascurabile e terminare programma
@@ -203,6 +222,24 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     }
     #endif
 
+    // --- Parametri Emulazione Charge Sensitive Amplifier ---
+    const double C_f_CSA = 1.0e-12;  // Capacità di feedback del CSA [F] (es. 1 pF) - DA REGOLARE
+    const double tau_CSA = 10.0e-9;  // Costante di tempo di decadimento CSA [s] (es. 50 ns) - DA REGOLARE
+    std::cout << "--- Parametri Charge Sensitive Amplifier Emulator ---" << std::endl;
+    std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << std::endl;
+    std::cout << "----------------------------------" << std::endl;
+    // Variabili per l'uscita del CSA emulato
+    double V_CSA_left = 0.0;  // Uscita del CSA al bordo sinistro
+    double V_CSA_right = 0.0; // Uscita del CSA al bordo destro
+    // Vettori per salvare l'uscita del CSA nel tempo (opzionale, per plotting)
+    std::vector<double> V_CSA_left_history;
+    std::vector<double> V_CSA_right_history;
+    std::vector<double> time_history_csa; // Per i tempi corrispondenti
+    // Coefficienti per l'aggiornamento del CSA
+    const double den_CSA = 1.0 + dt / (2.0 * tau_CSA);
+    const double k_CSA1 = (1.0 - dt / (2.0 * tau_CSA)) / den_CSA;
+    const double k_CSA2 = (dt / C_f_CSA) / den_CSA;
+    
     // --- Loop Temporale FDTD ---
     for (int step = 0; step < steps; ++step) {
 
@@ -335,7 +372,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         I.swap(I_new);
 
         // Condizione di uscita anticipata (opzionale)
-        if (reached_left && reached_right && step > steps / 2 ) {
+        if (reached_left && reached_right && step > steps / 1 ) { // for the moment let's include all the steps step> steps / 1 (was / 2)
              double max_V_abs = 0.0;
              for(double val : V) { max_V_abs = std::max(max_V_abs, std::abs(val)); }
              if (max_V_abs < output_precision) {
@@ -349,10 +386,29 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
              }
         }
 
+        // --- Emulazione Uscita CSA ---
+        // Corrente che entra nel CSA al bordo sinistro (x=0)
+        // I[0] è I_{1/2}, positiva se va a destra. Quindi la corrente IN un CSA a sx è -I[0]
+        double I_strip_left = (N > 0) ? -I[0] : 0.0;
+
+        // Corrente che entra nel CSA al bordo destro (x=L, i=N-1)
+        // I[N-2] è I_{N-1/2}, positiva se va a destra. Questa è la corrente IN un CSA a dx.
+        double I_strip_right = (N > 1) ? I[N-2] : 0.0;
+
+        V_CSA_left = k_CSA1 * V_CSA_left - k_CSA2 * I_strip_left;
+        V_CSA_right = k_CSA1 * V_CSA_right - k_CSA2 * I_strip_right;
+
+        // Salva valori del CSA per plotting (opzionale)
+        // t_output è il tempo alla fine dello step corrente ((step + 1) * dt)
+        V_CSA_left_history.push_back(V_CSA_left);
+        V_CSA_right_history.push_back(V_CSA_right);
+        time_history_csa.push_back(t_output); // Assicurati che t_output sia definito qui
+
     } // Fine loop temporale
 
     save_timefactor(time_factor, dt);
-
+    save_csa_output(time_history_csa, V_CSA_left_history, V_CSA_right_history);
+    
     std::cout << "\n--- Risultati Rilevamento Bordi ---" << std::endl;
     if (time_left > 0)
        std::cout << "Tempo di arrivo a sinistra: " << time_left * 1e9 << " ns\n";
