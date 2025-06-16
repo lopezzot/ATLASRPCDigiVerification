@@ -224,7 +224,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
     // --- Parametri Emulazione Charge Sensitive Amplifier ---
     const double C_f_CSA = 1.0e-12;  // Capacità di feedback del CSA [F] (es. 1 pF) - DA REGOLARE
-    const double tau_CSA = 10.0e-9;  // Costante di tempo di decadimento CSA [s] (es. 50 ns) - DA REGOLARE
+    const double tau_CSA = 5.0e-9;  // Costante di tempo di decadimento CSA [s] (es. 50 ns) - DA REGOLARE
     std::cout << "--- Parametri Charge Sensitive Amplifier Emulator ---" << std::endl;
     std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << std::endl;
     std::cout << "----------------------------------" << std::endl;
@@ -333,24 +333,43 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         double t_output = (step + 1) * dt;
         double t_output_forcurrent = (step+0.5) * dt;
 
+        // --- Emulazione Uscita CSA ---
+        // Corrente che entra nel CSA al bordo sinistro (x=0)
+        // I[0] è I_{1/2}, positiva se va a destra. Quindi la corrente IN un CSA a sx è -I[0]
+        double I_strip_left = (N > 0) ? -I_new[0] : 0.0;
+
+        // Corrente che entra nel CSA al bordo destro (x=L, i=N-1)
+        // I[N-2] è I_{N-1/2}, positiva se va a destra. Questa è la corrente IN un CSA a dx.
+        double I_strip_right = (N > 1) ? I_new[N-2] : 0.0;
+
+        V_CSA_left = k_CSA1 * V_CSA_left - k_CSA2 * I_strip_left;
+        V_CSA_right = k_CSA1 * V_CSA_right - k_CSA2 * I_strip_right;
+
+        // Salva valori del CSA per plotting (opzionale)
+        // t_output è il tempo alla fine dello step corrente ((step + 1) * dt)
+        V_CSA_left_history.push_back(V_CSA_left);
+        V_CSA_right_history.push_back(V_CSA_right);
+        time_history_csa.push_back(t_output); // Assicurati che t_output sia definito qui
+        // --- Fine Emulazione Uscita CSA ---
+
         // Controlla arrivo ai bordi (usa V_new appena calcolato)
-        if (!reached_left && std::abs(V_new[0]) >= threshold) { // Usa abs per soglia
+        if (!reached_left && std::abs(V_CSA_left) >= threshold) { // Usa abs per soglia
             reached_left = true;
             time_left = t_output;
             // std::cout << "-> Segnale raggiunto bordo sinistro a t = " << t_output*1e9 << " ns" << std::endl;
         }
-        if (!reached_right && std::abs(V_new[N - 1]) >= threshold) { // Usa abs per soglia
+        if (!reached_right && std::abs(V_CSA_right) >= threshold) { // Usa abs per soglia
             reached_right = true;
             time_right = t_output;
             // std::cout << "-> Segnale raggiunto bordo destro a t = " << t_output*1e9 << " ns" << std::endl;
         } // fine controllo primo arrivo ai bordi
         
         // Controlla secondo arrivo ai bordi for time-over-threshold
-        if (reached_left && !reached_left_two && std::abs(V_new[0]) <= threshold) {
+        if (reached_left && !reached_left_two && std::abs(V_CSA_left) <= threshold) {
             reached_left_two = true;
             time_left_two = t_output;
         }
-        if (reached_right && !reached_right_two && std::abs(V_new[N-1]) <= threshold) {
+        if (reached_right && !reached_right_two && std::abs(V_CSA_right) <= threshold) {
             reached_right_two = true;
             time_right_two = t_output;
         }
@@ -385,24 +404,6 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
                   break;
              }
         }
-
-        // --- Emulazione Uscita CSA ---
-        // Corrente che entra nel CSA al bordo sinistro (x=0)
-        // I[0] è I_{1/2}, positiva se va a destra. Quindi la corrente IN un CSA a sx è -I[0]
-        double I_strip_left = (N > 0) ? -I[0] : 0.0;
-
-        // Corrente che entra nel CSA al bordo destro (x=L, i=N-1)
-        // I[N-2] è I_{N-1/2}, positiva se va a destra. Questa è la corrente IN un CSA a dx.
-        double I_strip_right = (N > 1) ? I[N-2] : 0.0;
-
-        V_CSA_left = k_CSA1 * V_CSA_left - k_CSA2 * I_strip_left;
-        V_CSA_right = k_CSA1 * V_CSA_right - k_CSA2 * I_strip_right;
-
-        // Salva valori del CSA per plotting (opzionale)
-        // t_output è il tempo alla fine dello step corrente ((step + 1) * dt)
-        V_CSA_left_history.push_back(V_CSA_left);
-        V_CSA_right_history.push_back(V_CSA_right);
-        time_history_csa.push_back(t_output); // Assicurati che t_output sia definito qui
 
     } // Fine loop temporale
 
@@ -447,7 +448,7 @@ int main(int argc, char* argv[]) {
     int aN = 4000;
     double aR = 1.0;
     double aTau = 0.5e-9;
-    double aThreshold = 0.001;
+    double aThreshold = 0.01;
 
     // Parsing degli argomenti
     for (int i = 1; i < argc; ++i) {
