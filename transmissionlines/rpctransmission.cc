@@ -446,7 +446,7 @@ int main(int argc, char* argv[]) {
     // Valori di default
     double aLength = 2.0;
     int aN = 4000;
-    double aR = 1.0;
+    double aR = 0.02; // Ohm/m
     double aTau = 0.5e-9;
     double aThreshold = 0.01;
 
