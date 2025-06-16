@@ -135,7 +135,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double mur_const = (v * dt - dx) / (v * dt + dx); // Costante BC Mur
 
     // --- Parametri Simulazione ---
-    const double T = 0.;
+    double T = 0.;
     if(length<0.5) T = 40.0 * (length / v); // Max time of computing
     else T = 5.0 * (length/v);
     const int steps = static_cast<int>(T / dt);
@@ -482,7 +482,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak);
+    //process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
@@ -518,7 +518,7 @@ int main(int argc, char* argv[]) {
     }*/
 
     // Study behaviour as a function ok Jpeak and Length
-    /*outputname = "jpeak_length.txt";
+    outputname = "jpeak_length.txt";
     for(std::size_t i=0; i<15; i++){
         double newJpeak = -0.001 - i*0.0004; // m
         for(std::size_t j=0; j<40; j++){
@@ -526,7 +526,7 @@ int main(int argc, char* argv[]) {
             if(i==0 && j==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, outputname);
             else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, outputname, true);
         }
-    }*/
+    }
 
     return 0;
 }
