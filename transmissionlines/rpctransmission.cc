@@ -112,7 +112,7 @@ struct rpcoutput{
 #define wLOSS
 //#define MURBC
 
-void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, std::string output_name = "output_rpc.txt", bool append_output = false) {
+void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, double aJpeak, std::string output_name = "output_rpc.txt", bool append_output = false) {
     // --- Parameters for grid and transmission line ---
     const int N = aN;        // Numero di punti griglia
     const double length = aLength; // Lunghezza fisica striscia (m)
@@ -144,7 +144,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double sigma_x = 20e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
     const double t_start = 0.;//10e-9;        // Tempo inizio impulso sorgente (s) (es. 10 ns)
     const double tau = aTau;//0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
-    const double J_peak = -7e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
+    const double J_peak = aJpeak;//-7e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
 
     std::cout << "--- Parametri Simulazione RPC ---" << std::endl;
     std::cout << " N = " << N << ", length = " << length << " m, dx = " << dx << " m" << std::endl;
@@ -438,7 +438,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 }
 
 void print_usage(const char* progName) {
-    std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)]\n"
+    std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)] [--aJpeak valore (A/m)]\n"
               << "Tutti i parametri sono opzionali e hanno dei valori di default.\n";
 }
 
@@ -449,6 +449,7 @@ int main(int argc, char* argv[]) {
     double aR = 0.02; // Ohm/m
     double aTau = 0.5e-9; // ns
     double aThreshold = 0.01; // V
+    double aJpeak = -7e-3; // A/m
 
     // Parsing degli argomenti
     for (int i = 1; i < argc; ++i) {
@@ -467,40 +468,42 @@ int main(int argc, char* argv[]) {
             aTau = atof(argv[++i]);
         } else if (arg == "--aThreshold" && i + 1 < argc) {
             aThreshold = atof(argv[++i]);
-        } else {
+        } else if (arg == "--aJpeak" && i + 1 < argc) {
+            aJpeak = atof(argv[++i]);
+        } 
+        else {
             std::cerr << "Argomento non riconosciuto o mancante valore: " << arg << "\n";
             print_usage(argv[0]);
             return 1;
         }
     }
 
-    process_rpc_signal(aLength, aN, aR, aTau, aThreshold);
+    process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
-  /*   outputname = "threshold.txt";
+    /*outputname = "threshold.txt";
     for(std::size_t i=0; i<10; i++){
         double newThreshold = 0.001 + i*0.0005; // V
-        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, outputname);
-        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, outputname, true);
-    }
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, outputname, true);
+    }*/
 
     // Study behaviour as a function of tau
-    outputname = "tau.txt";
+    /*outputname = "tau.txt";
     for(std::size_t i=0; i<30; i++){
         double newTau = 0.1e-9 + i*0.05e-9; // s
-        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname);
-        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname, true);
+        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, outputname);
+        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, outputname, true);
     }
 
     // Study behaviour as a function of length
     outputname = "length.txt";
     for(std::size_t i=0; i<40; i++){
         double newLength = 1.0 + i*0.1; // m
-        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname);
-        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname, true);
+        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, outputname);
+        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, outputname, true);
     }
-
     */
     return 0;
 }
