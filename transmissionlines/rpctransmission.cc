@@ -144,7 +144,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double sigma_x = 20e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
     const double t_start = 0.;//10e-9;        // Tempo inizio impulso sorgente (s) (es. 10 ns)
     const double tau = aTau;//0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
-    const double J_peak = -5e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
+    const double J_peak = -7e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
 
     std::cout << "--- Parametri Simulazione RPC ---" << std::endl;
     std::cout << " N = " << N << ", length = " << length << " m, dx = " << dx << " m" << std::endl;
