@@ -117,10 +117,10 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const int N = aN;        // Numero di punti griglia
     const double length = aLength; // Lunghezza fisica striscia (m)
     const double dx = length / (N - 1); // Passo spaziale (m) (segmento di linea)
-    const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
-    //const double L = 2.08e-7;   // Induttanza per unità di lunghezza (H/m)
-    const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
-    //const double C = 0.83e-10;  // Capacità per unità di lunghezza (F/m)
+    //const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
+    const double L = 9.01e-8; // Induttanza calcolata per avere impedenza 18 ohm e velocità 20cm/ns (H/m)
+    //const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
+    const double C = 2.78e-10; // Capacità calcolata per avere impedenza 18 ohm e velocità 20cm/ns (F/m)
     #ifdef wLOSS
     const double R = aR;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
     #endif
