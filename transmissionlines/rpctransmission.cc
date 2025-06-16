@@ -65,13 +65,15 @@ struct rpcoutput{
     double R; // ohm/m
     double tau; //s
     double threshold; // V
+    double Jpeak; // A/m
 
-    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold){
+    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold, double aJpeak){
         length=aLength;
         N=aN;
         R=aR;
         tau=aTau;
         threshold=aThreshold;
+        Jpeak = aJpeak;
     };
     
     // data from simulation output
@@ -104,8 +106,8 @@ struct rpcoutput{
         out << std::fixed << std::setprecision(6);
 
         // Save both input and output fields
-        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\n";
-        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\n";
+        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\t Jpeak (A/m)\n";
+        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\t" << Jpeak << "\n";
     }
 };
 
@@ -430,7 +432,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::cout << "Velocità teorica di propagazione: " << v << " m/s\n";
 
     rpcoutput thisOutput;
-    thisOutput.add_metadata(length, N, R, tau, threshold);
+    thisOutput.add_metadata(length, N, R, tau, threshold, J_peak);
     thisOutput.add_output(time_left, time_right, time_left_two-time_left, time_right_two-time_right);
     thisOutput.set_filename(output_name);
     thisOutput.rpcoutput_tofile(append_output);
@@ -478,7 +480,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak);
+    //process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
@@ -495,15 +497,23 @@ int main(int argc, char* argv[]) {
         double newTau = 0.1e-9 + i*0.05e-9; // s
         if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, outputname);
         else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, outputname, true);
-    }
+    }*/
 
     // Study behaviour as a function of length
-    outputname = "length.txt";
+    /*outputname = "length.txt";
     for(std::size_t i=0; i<40; i++){
         double newLength = 1.0 + i*0.1; // m
         if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, outputname);
         else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, outputname, true);
+    }*/
+    
+    // Study behaviour as a function of Jpeak
+    outputname = "jpeak.txt";
+    for(std::size_t i=0; i<15; i++){
+        double newJpeak = -0.001 - i*0.0004; // m
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, outputname, true);
     }
-    */
+
     return 0;
 }
