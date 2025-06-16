@@ -444,11 +444,11 @@ void print_usage(const char* progName) {
 
 int main(int argc, char* argv[]) {
     // Valori di default
-    double aLength = 2.0;
+    double aLength = 2.0; // m
     int aN = 4000;
     double aR = 0.02; // Ohm/m
-    double aTau = 0.5e-9;
-    double aThreshold = 0.01;
+    double aTau = 0.5e-9; // ns
+    double aThreshold = 0.01; // V
 
     // Parsing degli argomenti
     for (int i = 1; i < argc; ++i) {
