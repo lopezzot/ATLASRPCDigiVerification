@@ -136,7 +136,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
     // --- Parametri Simulazione ---
     double T = 0.;
-    if(length<0.5) T = 40.0 * (length / v); // Max time of computing
+    if(length<0.8) T = 40.0 * (length / v); // Max time of computing
     else T = 5.0 * (length/v);
     const int steps = static_cast<int>(T / dt);
     int snapshot_interval = steps / 20; // Salva circa 100 snapshot
