@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <random>
 
 // Function to save profile of a vector
 void save_profile(const std::vector<double>& V, double time, int N, double dx, const std::string& prefix = "output") {
@@ -66,14 +67,18 @@ struct rpcoutput{
     double tau; //s
     double threshold; // V
     double Jpeak; // A/m
+    double SignalJitter; // s
+    double TDCBinSize; // s
 
-    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold, double aJpeak){
+    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold, double aJpeak, double aSignalJitter, double aTDCBinSize){
         length=aLength;
         N=aN;
         R=aR;
         tau=aTau;
         threshold=aThreshold;
         Jpeak = aJpeak;
+        SignalJitter = aSignalJitter;
+        TDCBinSize = aTDCBinSize;
     };
     
     // data from simulation output
@@ -106,15 +111,15 @@ struct rpcoutput{
         out << std::fixed << std::setprecision(6);
 
         // Save both input and output fields
-        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\t Jpeak (A/m)\n";
-        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\t" << Jpeak << "\n";
+        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\t Jpeak (A/m)\t Jitter (ns)\t TDCBin (s) \n";
+        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\t" << Jpeak << "\t" << SignalJitter*1e9 << "\t" << TDCBinSize*1e9 <<"\n";
     }
 };
 
 #define wLOSS
 //#define MURBC
 
-void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, double aJpeak, std::string output_name = "output_rpc.txt", bool append_output = false) {
+void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, double aJpeak, double aSignaljitter, double aTDCbinsize, std::string output_name = "output_rpc.txt", bool append_output = false) {
     // --- Parameters for grid and transmission line ---
     const int N = aN;        // Numero di punti griglia
     const double length = aLength; // Lunghezza fisica striscia (m)
@@ -192,6 +197,14 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
     std::cout << "--- Threshold to detect signal at borders ---" << std::endl;
     std::cout << " threshold : " << threshold << " V " << std::endl;
+    std::cout << "----------------------------------" << std::endl;
+
+    // Time smearing
+    double signaljitter = aSignaljitter;
+    double TDCbinsize = aTDCbinsize;
+    std::cout << "--- TDC resolution and time jitter ---" << std::endl;
+    std::cout << " Signal time jitter : " << signaljitter << " s " 
+              << " TDC bin size " << TDCbinsize << " s " << std::endl;
     std::cout << "----------------------------------" << std::endl;
 
     // Costanti moltiplicative per aggiornamento FDTD
@@ -434,7 +447,24 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::cout << "Velocità teorica di propagazione: " << v << " m/s\n";
 
     rpcoutput thisOutput;
-    thisOutput.add_metadata(length, N, R, tau, threshold, J_peak);
+    thisOutput.add_metadata(length, N, R, tau, threshold, J_peak, signaljitter, TDCbinsize);
+    std::random_device rd;  // Non-deterministic seed
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    std::normal_distribution<double> dist(0., signaljitter);
+    // If signaljitter > 0 add it to time
+    if (signaljitter > 0.){
+        time_left = time_left + dist(gen);
+        time_right = time_right + dist(gen);
+        time_left_two = time_left_two + dist(gen);
+        time_right_two = time_right_two + dist(gen);
+    }
+    std::uniform_real_distribution<double> uniform_dist(-TDCbinsize/2., TDCbinsize/2.);
+    if(TDCbinsize > 0.){
+        time_left = (std::round(time_left / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        time_right = (std::round(time_right / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        time_left_two = (std::round(time_left_two / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        time_right_two = (std::round(time_right_two / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+    }
     thisOutput.add_output(time_left, time_right, time_left_two-time_left, time_right_two-time_right);
     thisOutput.set_filename(output_name);
     thisOutput.rpcoutput_tofile(append_output);
@@ -451,9 +481,11 @@ int main(int argc, char* argv[]) {
     double aLength = 2.0; // m
     int aN = 4000;
     double aR = 0.02; // Ohm/m
-    double aTau = 0.5e-9; // ns
+    double aTau = 0.5e-9; // s
     double aThreshold = 0.01; // V
     double aJpeak = -7e-3; // A/m
+    double signaljitter = 0.08e-9; // s
+    double TDCbinsize = 0.08e-9; // s
 
     // Parsing degli argomenti
     for (int i = 1; i < argc; ++i) {
@@ -474,6 +506,10 @@ int main(int argc, char* argv[]) {
             aThreshold = atof(argv[++i]);
         } else if (arg == "--aJpeak" && i + 1 < argc) {
             aJpeak = atof(argv[++i]);
+        } else if (arg == "--aJitter" && i + 1 < argc) {
+            signaljitter = atof(argv[++i]);
+        } else if (arg == "--aTDCbin" && i + 1 < argc) {
+            TDCbinsize = atof(argv[++i]);
         } 
         else {
             std::cerr << "Argomento non riconosciuto o mancante valore: " << arg << "\n";
@@ -482,40 +518,40 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    //process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak);
+    process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
     /*outputname = "threshold.txt";
     for(std::size_t i=0; i<10; i++){
         double newThreshold = 0.001 + i*0.0005; // V
-        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, outputname);
-        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, outputname, true);
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, signaljitter, TDCbinsize, outputname, true);
     }*/
 
     // Study behaviour as a function of tau
     /*outputname = "tau.txt";
     for(std::size_t i=0; i<30; i++){
         double newTau = 0.1e-9 + i*0.05e-9; // s
-        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, outputname);
-        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, outputname, true);
+        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname, true);
     }*/
 
     // Study behaviour as a function of length
     /*outputname = "length.txt";
     for(std::size_t i=0; i<40; i++){
         double newLength = 1.0 + i*0.1; // m
-        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, outputname);
-        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, outputname, true);
+        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname, true);
     }*/
     
     // Study behaviour as a function of Jpeak
-    outputname = "jpeak.txt";
+    /*outputname = "jpeak.txt";
     for(std::size_t i=0; i<16; i++){
         double newJpeak = -0.001 - i*0.0004; // m
-        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, outputname);
-        else process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, outputname, true);
-    }
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname, true);
+    }*/
 
     // Study behaviour as a function ok Jpeak and Length
     /*outputname = "jpeak_length.txt";
@@ -523,8 +559,8 @@ int main(int argc, char* argv[]) {
         double newJpeak = -0.001 - i*0.0004; // m
         for(std::size_t j=0; j<40; j++){
             double newLength = 0.1 + j*0.05; // m
-            if(i==0 && j==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, outputname);
-            else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, outputname, true);
+            if(i==0 && j==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname);
+            else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname, true);
         }
     }*/
 
