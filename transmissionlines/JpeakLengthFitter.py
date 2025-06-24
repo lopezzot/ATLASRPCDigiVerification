@@ -48,7 +48,7 @@ X_input = np.hstack((fitD, fitJ))
 poly = PolynomialFeatures(degree=2, include_bias=False)
 X_poly = poly.fit_transform(X_input)
 # Fit linear regression on polynomial features
-model = LinearRegression()
+model = LinearRegression(fit_intercept=False)
 model.fit(X_poly, fitTOA)
 # Calcola TOA predetti sulla stessa griglia
 XY_grid = np.stack([X.ravel(), Y.ravel()], axis=1)
