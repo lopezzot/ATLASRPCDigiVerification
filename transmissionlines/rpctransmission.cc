@@ -471,6 +471,53 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
 }
 
+void parametrized_rpc(double aX, double aLength, double aChargeFraction, double signaljitter, double TDCbinsize, int NumberOfEvents){
+
+    std::cout<<"Using parametrized rpc"<<std::endl;
+
+    // this method uses parameterized TOA and TOT values,
+    // add the effect of the signal jitter and TDC resolution
+    // in order to study the effect on the phi resolution
+    //
+    std::random_device rd;  // Non-deterministic seed
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    std::normal_distribution<double> dist(0., signaljitter);
+    std::uniform_real_distribution<double> uniform_dist(-TDCbinsize/2., TDCbinsize/2.);
+
+    const double v = 0.23e9; // m/s
+    const double dist_left = aX;
+    const double dist_right = aLength-aX;
+    double X_meas = 0.0;
+
+    std::ostringstream filename;
+    filename << "secondcoordinate" << std::to_string(aX) << "_" <<std::to_string(signaljitter)<<"_"<<std::to_string(TDCbinsize)<<".txt";
+    std::ofstream out(filename.str());
+     if (!out) {
+        std::cerr << "Error while opening the file: " << filename.str() << std::endl;
+        return;
+    }
+    out << std::fixed << std::setprecision(6);
+    out <<" X_real (m) "<<" X_meas (m) "<< " jitter (ns) "<< " TDC size (ns) "<<std::endl;
+
+
+    for(std::size_t i=0;i<NumberOfEvents; i++){
+      
+        double TOA_left = 5.9966*dist_left+0.3369*aChargeFraction-0.4742*std::pow(dist_left,2)-0.7377*dist_left*aChargeFraction - 0.2242*std::pow(aChargeFraction,2);
+        double TOA_right = 5.9966*dist_right+0.3369*aChargeFraction-0.4742*std::pow(dist_right,2)-0.7377*dist_right*aChargeFraction - 0.2242*std::pow(aChargeFraction,2);
+        if (signaljitter > 0.){
+           TOA_left = TOA_left + dist(gen);
+           TOA_right = TOA_right + dist(gen);
+        }
+        if(TDCbinsize > 0.){
+           TOA_left = (std::round(TOA_left / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+           TOA_right = (std::round(TOA_right / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        }
+        X_meas = 1. + ((TOA_left/1e9-TOA_right/1e9)*v)/2. + aLength/v; //m
+        std::cout<<"aX "<<aX<<" m "<<X_meas<<" m "<<std::endl;
+        out << aX << "\t" << X_meas << "\t" << signaljitter << "\t" << TDCbinsize << "\n";
+    }
+}
+
 void print_usage(const char* progName) {
     std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)] [--aJpeak valore (A/m)]\n"
               << "Tutti i parametri sono opzionali e hanno dei valori di default.\n";
@@ -484,8 +531,8 @@ int main(int argc, char* argv[]) {
     double aTau = 0.5e-9; // s
     double aThreshold = 0.01; // V
     double aJpeak = -7e-3; // A/m
-    double signaljitter = 0.08e-9; // s
-    double TDCbinsize = 0.08e-9; // s
+    double signaljitter = 0.0;//8e-9; // s
+    double TDCbinsize = 0.0;//8e-9; // s
 
     // Parsing degli argomenti
     for (int i = 1; i < argc; ++i) {
@@ -518,7 +565,9 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize);
+   parametrized_rpc(1.5, aLength, 1.0, 0.08, 0.08, 1000);
+
+    //process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
@@ -554,7 +603,7 @@ int main(int argc, char* argv[]) {
     }*/
 
     // Study behaviour as a function ok Jpeak and Length
-    /*outputname = "jpeak_length.txt";
+   /* outputname = "jpeak_length.txt";
     for(std::size_t i=0; i<15; i++){
         double newJpeak = -0.001 - i*0.0004; // m
         for(std::size_t j=0; j<40; j++){
