@@ -154,6 +154,9 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double t_start = 0.;//10e-9;        // Tempo inizio impulso sorgente (s) (es. 10 ns)
     const double tau = aTau;//0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
     const double J_peak = aJpeak;//-7e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
+    // calcolo carica iniettata sulla strip
+    constexpr double e = 2.718281828459045;
+    const double ChargeOnStrip = -1.*J_peak * std::sqrt(2*M_PI*sigma_x*sigma_x) * e*tau;
 
     std::cout << "--- Parametri Simulazione RPC ---" << std::endl;
     std::cout << " N = " << N << ", length = " << length << " m, dx = " << dx << " m" << std::endl;
@@ -165,6 +168,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::cout << " x_source = " << x_source << " m, sigma_x = " << sigma_x << " m" << std::endl;
     std::cout << " t_start = " << t_start * 1e9 << " ns, tau = " << tau * 1e9 << " ns" << std::endl;
     std::cout << " J_peak = " << J_peak << " A/m" << std::endl;
+    std::cout << " Charge on strip = " << ChargeOnStrip * 1e15 << " fC " << std::endl;
     std::cout << "----------------------------------" << std::endl;
 
     #ifdef wLOSS
@@ -240,8 +244,8 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     #endif
 
     // --- Parametri Emulazione Charge Sensitive Amplifier ---
-    const double C_f_CSA = 1.0e-12;  // Capacità di feedback del CSA [F] (es. 1 pF) - DA REGOLARE
-    const double tau_CSA = 5.0e-9;  // Costante di tempo di decadimento CSA [s] (es. 50 ns) - DA REGOLARE
+    const double C_f_CSA = 0.2e-12;  // Capacità di feedback del CSA [F], ottenuto sapendo che il guadagno è 5mV/fC
+    const double tau_CSA = 5.0e-9;  // Costante di tempo di decadimento CSA [s], ottenuto a BB5
     std::cout << "--- Parametri Charge Sensitive Amplifier Emulator ---" << std::endl;
     std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << std::endl;
     std::cout << "----------------------------------" << std::endl;
@@ -565,9 +569,9 @@ int main(int argc, char* argv[]) {
         }
     }
 
-   parametrized_rpc(1.5, aLength, 1.0, 0.08, 0.08, 1000);
+   //parametrized_rpc(1.5, aLength, 1.0, 0.08, 0.08, 1000);
 
-    //process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize);
+   process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
@@ -603,7 +607,7 @@ int main(int argc, char* argv[]) {
     }*/
 
     // Study behaviour as a function ok Jpeak and Length
-   /* outputname = "jpeak_length.txt";
+    /*outputname = "jpeak_length.txt";
     for(std::size_t i=0; i<15; i++){
         double newJpeak = -0.001 - i*0.0004; // m
         for(std::size_t j=0; j<40; j++){
