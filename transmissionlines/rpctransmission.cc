@@ -58,6 +58,25 @@ void save_csa_output(const std::vector<double>& times,
     //std::cout << "CSA output saved to " << filename << std::endl;
 }
 
+// Funzione per salvare il segnale sulla strip visto all'oscilloscopio
+void save_scope_output(const std::vector<double>& times,
+                     const std::vector<double>& scope_left,
+                     const std::vector<double>& scope_right,
+                     const std::string& filename = "scope_output.txt") {
+    std::ofstream out(filename);
+    if (!out) {
+        std::cerr << "Error opening scope output file: " << filename << std::endl;
+        return;
+    }
+    out << std::fixed << std::setprecision(6);
+    out << "# Time (ns)\tV_scope_Left (V)\tV_scope_Right (V)\n";
+    for (size_t i = 0; i < times.size(); ++i) {
+        out << times[i] * 1e9 << "\t"
+            << (i < scope_left.size() ? scope_left[i] : 0.0) << "\t"
+            << (i < scope_right.size() ? scope_right[i] : 0.0) << "\n";
+    }
+}
+
 struct rpcoutput{
 
     // metadata needed as input
@@ -260,6 +279,12 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double den_CSA = 1.0 + dt / (2.0 * tau_CSA);
     const double k_CSA1 = (1.0 - dt / (2.0 * tau_CSA)) / den_CSA;
     const double k_CSA2 = (dt / C_f_CSA) / den_CSA;
+
+    // Scope measurement
+    std::vector<double> V_scope_left_history;
+    std::vector<double> V_scope_right_history;
+    std::vector<double> time_history_scope; // Per i tempi corrispondenti
+
     
     // --- Loop Temporale FDTD ---
     for (int step = 0; step < steps; ++step) {
@@ -371,6 +396,12 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         V_CSA_left_history.push_back(V_CSA_left);
         V_CSA_right_history.push_back(V_CSA_right);
         time_history_csa.push_back(t_output); // Assicurati che t_output sia definito qui
+
+        // Salva valori per lo scope
+        V_scope_left_history.push_back(V_new[0]);
+        V_scope_right_history.push_back(V_new[N-1]);
+        time_history_scope.push_back(t_output);
+
         // --- Fine Emulazione Uscita CSA ---
 
         // Controlla arrivo ai bordi (usa V_new appena calcolato)
@@ -430,6 +461,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
     save_timefactor(time_factor, dt);
     save_csa_output(time_history_csa, V_CSA_left_history, V_CSA_right_history);
+    save_scope_output(time_history_scope, V_scope_left_history, V_scope_right_history);
     
     std::cout << "\n--- Risultati Rilevamento Bordi ---" << std::endl;
     if (time_left > 0)
