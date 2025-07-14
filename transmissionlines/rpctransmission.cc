@@ -169,13 +169,10 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     // --- Parametri Sorgente RPC Realistica ---
     // !!! QUESTI VALORI SONO ESEMPI - USA VALORI SPECIFICI PER ATLAS RPC !!!
     const double x_source = length / 2.0; // Posizione sorgente (es. 1/3 della lunghezza) (m)
-    const double sigma_x = 20e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
+    const double sigma_x = 5e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
     const double t_start = 0.;//10e-9;        // Tempo inizio impulso sorgente (s) (es. 10 ns)
     const double tau = aTau;//0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
     const double J_peak = aJpeak;//-7e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
-    // calcolo carica iniettata sulla strip
-    constexpr double e = 2.718281828459045;
-    const double ChargeOnStrip = -1.*J_peak * std::sqrt(2*M_PI*sigma_x*sigma_x) * e*tau;
 
     std::cout << "--- Parametri Simulazione RPC ---" << std::endl;
     std::cout << " N = " << N << ", length = " << length << " m, dx = " << dx << " m" << std::endl;
@@ -187,7 +184,6 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::cout << " x_source = " << x_source << " m, sigma_x = " << sigma_x << " m" << std::endl;
     std::cout << " t_start = " << t_start * 1e9 << " ns, tau = " << tau * 1e9 << " ns" << std::endl;
     std::cout << " J_peak = " << J_peak << " A/m" << std::endl;
-    std::cout << " Charge on strip = " << ChargeOnStrip * 1e15 << " fC " << std::endl;
     std::cout << "----------------------------------" << std::endl;
 
     #ifdef wLOSS
@@ -263,8 +259,8 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     #endif
 
     // --- Parametri Emulazione Charge Sensitive Amplifier ---
-    const double C_f_CSA = 0.2e-12;  // Capacità di feedback del CSA [F], ottenuto sapendo che il guadagno è 5mV/fC
-    const double tau_CSA = 5.0e-9;  // Costante di tempo di decadimento CSA [s], ottenuto a BB5
+    const double C_f_CSA = 2e-12;  // Capacità di feedback del CSA [F], ottenuto sapendo che il guadagno è 0.5mV/fC
+    const double tau_CSA = 10.0e-9;  // Costante di tempo di decadimento CSA [s], ottenuto coi dati di BB5
     std::cout << "--- Parametri Charge Sensitive Amplifier Emulator ---" << std::endl;
     std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << std::endl;
     std::cout << "----------------------------------" << std::endl;
@@ -285,7 +281,12 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::vector<double> V_scope_right_history;
     std::vector<double> time_history_scope; // Per i tempi corrispondenti
 
-    
+    // -- Carica totale iniettata --
+    const double  injectedCharge = -1.*J_peak * std::sqrt(2*M_PI*sigma_x*sigma_x) * std::sqrt(2*M_PI*tau*tau); // assuming gaussian temporal shape and spatial shape
+    std::cout<<"--- Charge on strip --"<<std::endl;
+    std::cout<<" injected charge: " << injectedCharge*1e15 << " fC " << std::endl;
+    std::cout << "----------------------------------" << std::endl;
+
     // --- Loop Temporale FDTD ---
     for (int step = 0; step < steps; ++step) {
 
@@ -310,6 +311,34 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
         // Calcola sorgente solo se nel periodo attivo
         if (time_relative > 0) {
+            /* gaussian temporal factor */
+            double temporal_factor = 0.0;
+            double sigma = tau; //1.0e-9;      // larghezza temporale dell'impulso
+            double t0 = 3.0 * sigma; // centro della gaussiana, per avere f(0) ≈ 0
+            double t_rel = time_relative;
+            temporal_factor = std::exp( - std::pow((t_rel - t0), 2) / (2.0 * sigma * sigma) );
+            time_factor.push_back(temporal_factor);
+
+            /* double exponential temporal factor */
+            /*
+            // Doppia esponenziale: salita con tau_r, discesa con tau_d
+            double tau_r = 1.0e-9; // costante di salita (rapida)
+            double tau_d = 1.1e-9; // costante di discesa (lenta)
+            double t_rel = time_relative;
+            double temporal_factor = std::exp(-t_rel / tau_d) - std::exp(-t_rel / tau_r);
+            // Normalizzazione opzionale: portiamo il picco a 1
+            // Picco massimo avviene a t_max = (tau_r * tau_d)/(tau_d - tau_r) * ln(tau_d / tau_r)
+            // Calcoliamo il valore massimo per normalizzare
+            double t_peak = (tau_r * tau_d) / (tau_d - tau_r) * std::log(tau_d / tau_r);
+            double peak_value = std::exp(-t_peak / tau_d) - std::exp(-t_peak / tau_r);
+            if (peak_value > 0.0) {
+               temporal_factor /= peak_value; // normalizza il picco a 1
+            }
+            time_factor.push_back(temporal_factor);
+            */
+
+            /* linear + exponential temporal factor */
+            /*
             // Forma temporale: (t'/tau) * exp(-t'/tau) normalizzata al picco
             // Modifichiamo per avere un integrale definito (carica totale per unità di lunghezza)
             // Usiamo Q_density * (1/tau) * exp(-t'/tau) dove Q_density = J_peak * tau
@@ -327,12 +356,14 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
              temporal_factor *= std::exp(1.0); // Ora il picco è 1
              time_factor.push_back(temporal_factor);
             }
+            */
+            
             int Jsteplimit = 0;
             for (int i = 1; i < N - 1; ++i) {
                 double x = i * dx;
                 double spatial_factor = std::exp(-std::pow((x - x_source), 2) / (2 * sigma_x * sigma_x));
-                Jsteplimit = savegif ? steps : 400;
-                if(step<=Jsteplimit && step % 20 ==0){ 
+                Jsteplimit = savegif ? steps : 2400;
+                if(step<=Jsteplimit && step % 120 ==0){ 
                   J[i] = J_peak * spatial_factor * temporal_factor;
                 }
                 double source_current_density = J_peak * spatial_factor * temporal_factor;
@@ -340,7 +371,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
                 // Applica a V: V_new[i] -= (dt / C) * J(x,t)
                 V_new[i] -= const_Source * source_current_density;
             }
-            if(step<=Jsteplimit && step % 20 ==0) save_profile(J, (step+0.5)*dt, N, dx, "J"); // Passa N e dx
+            if(step<=Jsteplimit && step % 120 ==0) save_profile(J, (step+0.5)*dt, N, dx, "J"); // Passa N e dx
         }
 
         #ifdef MURBC
@@ -427,12 +458,12 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         }
 
         // Scrivi su file snapshot
-        if (t_output < 1.5*tau && step % 20 == 0){ 
+        if (t_output < 3.0*tau && step % 60 == 0){ 
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
            save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
         }
-        if (savegif == true) snapshot_interval = 20;
-        if ((t_output > 1.5*tau && step % snapshot_interval == 0) || step == steps -1 ) { // Salva anche l'ultimo
+        if (savegif == true) snapshot_interval = 80;
+        if ((t_output > 3.0*tau && step % snapshot_interval == 0) || step == steps -1 ) { // Salva anche l'ultimo
            // std::cout << "Salvataggio snapshot a t = " << t_output*1e9 << " ns (step " << step << ")" << std::endl;
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
            save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
@@ -564,7 +595,7 @@ int main(int argc, char* argv[]) {
     double aLength = 2.0; // m
     int aN = 4000;
     double aR = 0.02; // Ohm/m
-    double aTau = 0.5e-9; // s
+    double aTau = 0.6e-9; // s
     double aThreshold = 0.01; // V
     double aJpeak = -7e-3; // A/m
     double signaljitter = 0.0;//8e-9; // s

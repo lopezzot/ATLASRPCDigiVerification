@@ -10,7 +10,8 @@ import re # Import regular expressions for parsing filenames
 FILE_PATTERN = "J*.txt" # Pattern per trovare i file (es. rpc_signal_t*ns.txt)
                                    # Assicurati che il prefisso corrisponda!
 OUTPUT_FILENAME = "J_animation.gif" # Nome file output (.gif o .mp4)
-INTERVAL_MS = 100  # Millisecondi tra un frame e l'altro (velocità animazione)
+INTERVAL_MS = 150  # Millisecondi tra un frame e l'altro (velocità animazione)
+MAX_TIME_NS = 10.0 # Limite massimo del tempo in ns da includere nell'animazione
 
 # Limiti asse Y: None per auto-determinazione, oppure una tupla (ymin, ymax)
 # Es: Y_LIMITS = (-0.01, 0.01) # Imposta manualmente se necessario
@@ -44,10 +45,9 @@ if not file_list:
 file_data = []
 for f in file_list:
     time_ns = extract_time_from_filename(f)
-    if time_ns is not None:
+    # Controlla se il tempo è valido E se è minore o uguale al nostro limite
+    if time_ns is not None and time_ns <= MAX_TIME_NS:
         file_data.append({'filename': f, 'time_ns': time_ns})
-    else:
-        print(f"Attenzione: Impossibile estrarre il tempo da '{f}'. File saltato.")
 
 # Controlla se abbiamo file validi dopo il parsing
 if not file_data:
