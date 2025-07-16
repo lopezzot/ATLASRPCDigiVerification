@@ -261,7 +261,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     // --- Parametri Emulazione Charge Sensitive Amplifier ---
     const double C_f_CSA = 2e-12;  // Capacità di feedback del CSA [F], ottenuto sapendo che il guadagno è 0.5mV/fC
     const double tau_CSA = 5.0e-9;  // Costante di tempo di decadimento CSA [s], ottenuto coi dati di BB5
-    const double tau_rise_CSA = 2.0e-9; // Costante di tempo di salita [s]
+    const double tau_rise_CSA = 5.0e-9; // Costante di tempo di salita [s]
     std::cout << "--- Parametri Charge Sensitive Amplifier Emulator ---" << std::endl;
     std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << " tau_rise_CSA = "<< tau_rise_CSA * 1e9 << " ns"<< std::endl;
     std::cout << "----------------------------------" << std::endl;
