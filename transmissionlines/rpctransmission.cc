@@ -260,13 +260,16 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
     // --- Parametri Emulazione Charge Sensitive Amplifier ---
     const double C_f_CSA = 2e-12;  // Capacità di feedback del CSA [F], ottenuto sapendo che il guadagno è 0.5mV/fC
-    const double tau_CSA = 10.0e-9;  // Costante di tempo di decadimento CSA [s], ottenuto coi dati di BB5
+    const double tau_CSA = 5.0e-9;  // Costante di tempo di decadimento CSA [s], ottenuto coi dati di BB5
+    const double tau_rise_CSA = 2.0e-9; // Costante di tempo di salita [s]
     std::cout << "--- Parametri Charge Sensitive Amplifier Emulator ---" << std::endl;
-    std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << std::endl;
+    std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << " tau_rise_CSA = "<< tau_rise_CSA * 1e9 << " ns"<< std::endl;
     std::cout << "----------------------------------" << std::endl;
     // Variabili per l'uscita del CSA emulato
     double V_CSA_left = 0.0;  // Uscita del CSA al bordo sinistro
     double V_CSA_right = 0.0; // Uscita del CSA al bordo destro
+    double V_CSA_left_final = 0.0;  // Uscita finale con tempo di salita finito
+    double V_CSA_right_final = 0.0; // Uscita finale con tempo di salita finito
     // Vettori per salvare l'uscita del CSA nel tempo (opzionale, per plotting)
     std::vector<double> V_CSA_left_history;
     std::vector<double> V_CSA_right_history;
@@ -284,7 +287,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     // -- Carica totale iniettata --
     const double  injectedCharge = -1.*J_peak * std::sqrt(2*M_PI*sigma_x*sigma_x) * std::sqrt(2*M_PI*tau*tau); // assuming gaussian temporal shape and spatial shape
     std::cout<<"--- Charge on strip --"<<std::endl;
-    std::cout<<" injected charge: " << injectedCharge*1e15 << " fC " << std::endl;
+    std::cout<<" injected charge: " << injectedCharge*1e15 << " fC " <<" charge per signal (half): " << injectedCharge*0.5*1e15 << " fC "<< std::endl;
     std::cout << "----------------------------------" << std::endl;
 
     // --- Loop Temporale FDTD ---
@@ -422,10 +425,20 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         V_CSA_left = k_CSA1 * V_CSA_left - k_CSA2 * I_strip_left;
         V_CSA_right = k_CSA1 * V_CSA_right - k_CSA2 * I_strip_right;
 
+        // Applica il filtro passa-basso per simulare il tempo di salita finito
+        // Discretizzazione di: dV_final/dt = (V_ideal - V_final) / tau_rise
+        if (tau_rise_CSA > 1e-18) { // Evita divisione per zero
+           V_CSA_left_final += (dt / tau_rise_CSA) * (V_CSA_left - V_CSA_left_final);
+           V_CSA_right_final += (dt / tau_rise_CSA) * (V_CSA_right - V_CSA_right_final);
+        } else { // Se tau_rise è zero, l'uscita è istantanea
+           V_CSA_left_final = V_CSA_left;
+           V_CSA_right_final = V_CSA_right;
+        }
+
         // Salva valori del CSA per plotting (opzionale)
         // t_output è il tempo alla fine dello step corrente ((step + 1) * dt)
-        V_CSA_left_history.push_back(V_CSA_left);
-        V_CSA_right_history.push_back(V_CSA_right);
+        V_CSA_left_history.push_back(V_CSA_left_final);
+        V_CSA_right_history.push_back(V_CSA_right_final);
         time_history_csa.push_back(t_output); // Assicurati che t_output sia definito qui
 
         // Salva valori per lo scope
@@ -436,23 +449,23 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         // --- Fine Emulazione Uscita CSA ---
 
         // Controlla arrivo ai bordi (usa V_new appena calcolato)
-        if (!reached_left && std::abs(V_CSA_left) >= threshold) { // Usa abs per soglia
+        if (!reached_left && std::abs(V_CSA_left_final) >= threshold) { // Usa abs per soglia
             reached_left = true;
             time_left = t_output;
             // std::cout << "-> Segnale raggiunto bordo sinistro a t = " << t_output*1e9 << " ns" << std::endl;
         }
-        if (!reached_right && std::abs(V_CSA_right) >= threshold) { // Usa abs per soglia
+        if (!reached_right && std::abs(V_CSA_right_final) >= threshold) { // Usa abs per soglia
             reached_right = true;
             time_right = t_output;
             // std::cout << "-> Segnale raggiunto bordo destro a t = " << t_output*1e9 << " ns" << std::endl;
         } // fine controllo primo arrivo ai bordi
         
         // Controlla secondo arrivo ai bordi for time-over-threshold
-        if (reached_left && !reached_left_two && std::abs(V_CSA_left) <= threshold) {
+        if (reached_left && !reached_left_two && std::abs(V_CSA_left_final) <= threshold) {
             reached_left_two = true;
             time_left_two = t_output;
         }
-        if (reached_right && !reached_right_two && std::abs(V_CSA_right) <= threshold) {
+        if (reached_right && !reached_right_two && std::abs(V_CSA_right_final) <= threshold) {
             reached_right_two = true;
             time_right_two = t_output;
         }
