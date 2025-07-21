@@ -134,6 +134,7 @@ ax.grid(True)
 # Aggiungi testo per mostrare il tempo corrente sull'animazione
 time_text = ax.text(0.05, 0.90, '', transform=ax.transAxes, fontsize=10,
                     bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+plt.tight_layout()
 
 # --- Funzione di Inizializzazione (per blitting) ---
 # Reimposta la linea e il testo all'inizio o quando la figura viene ridisegnata
