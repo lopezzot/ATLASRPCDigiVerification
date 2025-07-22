@@ -609,7 +609,7 @@ int main(int argc, char* argv[]) {
     int aN = 4000;
     double aR = 0.02; // Ohm/m
     double aTau = 0.6e-9; // s
-    double aThreshold = 0.01; // V
+    double aThreshold = 0.0005; // V
     double aJpeak = -7e-3; // A/m
     double signaljitter = 0.0;//8e-9; // s
     double TDCbinsize = 0.0;//8e-9; // s
