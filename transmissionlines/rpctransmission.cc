@@ -86,10 +86,11 @@ struct rpcoutput{
     double tau; //s
     double threshold; // V
     double Jpeak; // A/m
+    double ChargeOnStrip; // C
     double SignalJitter; // s
     double TDCBinSize; // s
 
-    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold, double aJpeak, double aSignalJitter, double aTDCBinSize){
+    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold, double aJpeak, double aSignalJitter, double aTDCBinSize, double aCharge){
         length=aLength;
         N=aN;
         R=aR;
@@ -98,6 +99,7 @@ struct rpcoutput{
         Jpeak = aJpeak;
         SignalJitter = aSignalJitter;
         TDCBinSize = aTDCBinSize;
+        ChargeOnStrip = aCharge;
     };
     
     // data from simulation output
@@ -130,15 +132,15 @@ struct rpcoutput{
         out << std::fixed << std::setprecision(6);
 
         // Save both input and output fields
-        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\t Jpeak (A/m)\t Jitter (ns)\t TDCBin (s) \n";
-        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\t" << Jpeak << "\t" << SignalJitter*1e9 << "\t" << TDCBinSize*1e9 <<"\n";
+        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\t Charge (fC)\t Jitter (ns)\t TDCBin (s) \n";
+        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\t" << ChargeOnStrip*1e15 << "\t" << SignalJitter*1e9 << "\t" << TDCBinSize*1e9 <<"\n";
     }
 };
 
 #define wLOSS
 //#define MURBC
 
-void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, double aJpeak, double aSignaljitter, double aTDCbinsize, std::string output_name = "output_rpc.txt", bool append_output = false) {
+void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, double aCharge, double aSignaljitter, double aTDCbinsize, std::string output_name = "output_rpc.txt", bool append_output = false) {
     // --- Parameters for grid and transmission line ---
     const int N = aN;        // Numero di punti griglia
     const double length = aLength; // Lunghezza fisica striscia (m)
@@ -172,6 +174,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double sigma_x = 5e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
     const double t_start = 0.;//10e-9;        // Tempo inizio impulso sorgente (s) (es. 10 ns)
     const double tau = aTau;//0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
+    const double aJpeak = -1.*aCharge/(std::sqrt(2*M_PI*sigma_x*sigma_x)*std::sqrt(2*M_PI*tau*tau));
     const double J_peak = aJpeak;//-7e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
 
     std::cout << "--- Parametri Simulazione RPC ---" << std::endl;
@@ -527,7 +530,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::cout << "Velocità teorica di propagazione: " << v << " m/s\n";
 
     rpcoutput thisOutput;
-    thisOutput.add_metadata(length, N, R, tau, threshold, J_peak, signaljitter, TDCbinsize);
+    thisOutput.add_metadata(length, N, R, tau, threshold, J_peak, signaljitter, TDCbinsize, aCharge);
     std::random_device rd;  // Non-deterministic seed
     std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
     std::normal_distribution<double> dist(0., signaljitter);
@@ -599,7 +602,7 @@ void parametrized_rpc(double aX, double aLength, double aChargeFraction, double 
 }
 
 void print_usage(const char* progName) {
-    std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)] [--aJpeak valore (A/m)]\n"
+    std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)] [--aChargeOnStrip valore (fC)]\n"
               << "Tutti i parametri sono opzionali e hanno dei valori di default.\n";
 }
 
@@ -610,7 +613,8 @@ int main(int argc, char* argv[]) {
     double aR = 0.02; // Ohm/m
     double aTau = 0.6e-9; // s
     double aThreshold = 0.0005; // V
-    double aJpeak = -7e-3; // A/m
+    double aJpeak = -7e-3; // A/m //not used anymore, deprecated. It is calculated inside process_rpc_signal()
+    double aChargeOnStrip = 131.947e-15; // C (this is the total charge on strip that creates two signals)
     double signaljitter = 0.0;//8e-9; // s
     double TDCbinsize = 0.0;//8e-9; // s
 
@@ -631,8 +635,9 @@ int main(int argc, char* argv[]) {
             aTau = atof(argv[++i]);
         } else if (arg == "--aThreshold" && i + 1 < argc) {
             aThreshold = atof(argv[++i]);
-        } else if (arg == "--aJpeak" && i + 1 < argc) {
-            aJpeak = atof(argv[++i]);
+        } else if (arg == "--aCharge" && i + 1 < argc) {
+            aChargeOnStrip = atof(argv[++i]);
+            aChargeOnStrip = aChargeOnStrip*1e-15;
         } else if (arg == "--aJitter" && i + 1 < argc) {
             signaljitter = atof(argv[++i]);
         } else if (arg == "--aTDCbin" && i + 1 < argc) {
@@ -647,51 +652,51 @@ int main(int argc, char* argv[]) {
 
    //parametrized_rpc(1.5, aLength, 1.0, 0.08, 0.08, 1000);
 
-   process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize);
+   //process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
     /*outputname = "threshold.txt";
     for(std::size_t i=0; i<10; i++){
         double newThreshold = 0.001 + i*0.0005; // V
-        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, signaljitter, TDCbinsize, outputname);
-        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aJpeak, signaljitter, TDCbinsize, outputname, true);
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname, true);
     }*/
 
     // Study behaviour as a function of tau
     /*outputname = "tau.txt";
     for(std::size_t i=0; i<30; i++){
         double newTau = 0.1e-9 + i*0.05e-9; // s
-        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname);
-        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname, true);
+        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname, true);
     }*/
 
     // Study behaviour as a function of length
     /*outputname = "length.txt";
     for(std::size_t i=0; i<40; i++){
         double newLength = 1.0 + i*0.1; // m
-        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname);
-        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aJpeak, signaljitter, TDCbinsize, outputname, true);
+        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname, true);
     }*/
     
     // Study behaviour as a function of Jpeak
     /*outputname = "jpeak.txt";
-    for(std::size_t i=0; i<16; i++){
-        double newJpeak = -0.001 - i*0.0004; // m
-        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname);
-        else process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname, true);
+    for(std::size_t i=0; i<17; i++){
+        double newCharge = 4*13.1947e-15 + i*13.1947e-15; // C
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname, true);
     }*/
 
     // Study behaviour as a function ok Jpeak and Length
-    /*outputname = "jpeak_length.txt";
-    for(std::size_t i=0; i<15; i++){
-        double newJpeak = -0.001 - i*0.0004; // m
+    outputname = "jpeak_length.txt";
+    for(std::size_t i=0; i<17; i++){
+        double newCharge = 4*13.1947e-15 + i*13.1947e-15; // C
         for(std::size_t j=0; j<40; j++){
-            double newLength = 0.1 + j*0.05; // m
-            if(i==0 && j==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname);
-            else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newJpeak, signaljitter, TDCbinsize, outputname, true);
+            double newLength = 0.1 + j*0.1; // m
+            if(i==0 && j==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname);
+            else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname, true);
         }
-    }*/
+    }
 
     return 0;
 }

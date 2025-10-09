@@ -8,8 +8,7 @@ from sklearn.preprocessing import PolynomialFeatures
 # Carica i dati
 data = np.loadtxt("jpeak_length.txt", skiprows=1)
 
-J = np.abs(data[:, 9])   # Spike current density (A/m)
-J = [x/0.007 for x in J] # move to fraction of spike charge on strip
+J = np.abs(data[:, 9])   # Charge on strip (fC)
 TOT = data[:, 7]         # TOT left (ns)
 D = data[:, 0] / 2       # Half distance to edge (m)
 
@@ -30,7 +29,7 @@ surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
 
 # Etichette e colorbar
 ax.set_xlabel("Distance to edge (m)")
-ax.set_ylabel("Fraction of spike charge on strip")
+ax.set_ylabel("Charge on strip (fC)")
 ax.set_zlabel("Time over threshold (ns)")
 ax.set_title("")
 
@@ -73,7 +72,7 @@ diff = np.nan_to_num(diff, nan=0.0)
 
 plt.title("Difference between interpolated data and fitted model")
 plt.xlabel("Distance to edge (m)")
-plt.ylabel("Fraction of spike charge on strip")
+plt.ylabel("Charge on strip (fC)")
 
 # Usa pcolormesh per la differenza sulla stessa griglia 2D
 pcm = plt.pcolormesh(X, Y, diff, cmap='coolwarm', shading='auto')
