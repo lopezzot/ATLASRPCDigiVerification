@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <random>
 
 // Function to save profile of a vector
 void save_profile(const std::vector<double>& V, double time, int N, double dx, const std::string& prefix = "output") {
@@ -37,6 +38,44 @@ void save_timefactor(const std::vector<double>& V, double dt, const std::string&
         out << (i+0.5)*dt*1e9 << "\t" << V[i] << "\n";
     }
 }
+// Funzione per salvare l'output del Charge Sensitive Amplifier (esempio)
+void save_csa_output(const std::vector<double>& times,
+                     const std::vector<double>& csa_left,
+                     const std::vector<double>& csa_right,
+                     const std::string& filename = "csa_output.txt") {
+    std::ofstream out(filename);
+    if (!out) {
+        std::cerr << "Error opening CSA output file: " << filename << std::endl;
+        return;
+    }
+    out << std::fixed << std::setprecision(6);
+    out << "# Time (ns)\tV_CSA_Left (V)\tV_CSA_Right (V)\n";
+    for (size_t i = 0; i < times.size(); ++i) {
+        out << times[i] * 1e9 << "\t"
+            << (i < csa_left.size() ? csa_left[i] : 0.0) << "\t"
+            << (i < csa_right.size() ? csa_right[i] : 0.0) << "\n";
+    }
+    //std::cout << "CSA output saved to " << filename << std::endl;
+}
+
+// Funzione per salvare il segnale sulla strip visto all'oscilloscopio
+void save_scope_output(const std::vector<double>& times,
+                     const std::vector<double>& scope_left,
+                     const std::vector<double>& scope_right,
+                     const std::string& filename = "scope_output.txt") {
+    std::ofstream out(filename);
+    if (!out) {
+        std::cerr << "Error opening scope output file: " << filename << std::endl;
+        return;
+    }
+    out << std::fixed << std::setprecision(6);
+    out << "# Time (ns)\tV_scope_Left (V)\tV_scope_Right (V)\n";
+    for (size_t i = 0; i < times.size(); ++i) {
+        out << times[i] * 1e9 << "\t"
+            << (i < scope_left.size() ? scope_left[i] : 0.0) << "\t"
+            << (i < scope_right.size() ? scope_right[i] : 0.0) << "\n";
+    }
+}
 
 struct rpcoutput{
 
@@ -46,13 +85,21 @@ struct rpcoutput{
     double R; // ohm/m
     double tau; //s
     double threshold; // V
+    double Jpeak; // A/m
+    double ChargeOnStrip; // C
+    double SignalJitter; // s
+    double TDCBinSize; // s
 
-    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold){
+    void add_metadata(double aLength, int aN, double aR, double aTau, double aThreshold, double aJpeak, double aSignalJitter, double aTDCBinSize, double aCharge){
         length=aLength;
         N=aN;
         R=aR;
         tau=aTau;
         threshold=aThreshold;
+        Jpeak = aJpeak;
+        SignalJitter = aSignalJitter;
+        TDCBinSize = aTDCBinSize;
+        ChargeOnStrip = aCharge;
     };
     
     // data from simulation output
@@ -85,23 +132,23 @@ struct rpcoutput{
         out << std::fixed << std::setprecision(6);
 
         // Save both input and output fields
-        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\n";
-        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\n";
+        if(!append_output) out << "length (m)\t N\t R (ohm/m)\t tau (ns)\t threshold (V)\t time_left (ns)\t time_right (ns)\t tot_left (ns)\t tot_right (ns)\t Charge (fC)\t Jitter (ns)\t TDCBin (s) \n";
+        out << length << "\t" << N << "\t" << R << "\t" << tau*1e9 << "\t" << threshold << "\t" << time_left*1e9 << "\t" << time_right*1e9 << "\t" << tot_left*1e9 << "\t" << tot_right*1e9 << "\t" << ChargeOnStrip*1e15 << "\t" << SignalJitter*1e9 << "\t" << TDCBinSize*1e9 <<"\n";
     }
 };
 
 #define wLOSS
 //#define MURBC
 
-void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, std::string output_name = "output_rpc.txt", bool append_output = false) {
+void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, double aTau, double aThreshold, double aCharge, double aSignaljitter, double aTDCbinsize, std::string output_name = "output_rpc.txt", bool append_output = false) {
     // --- Parameters for grid and transmission line ---
     const int N = aN;        // Numero di punti griglia
     const double length = aLength; // Lunghezza fisica striscia (m)
     const double dx = length / (N - 1); // Passo spaziale (m) (segmento di linea)
-    const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
-    //const double L = 2.08e-7;   // Induttanza per unità di lunghezza (H/m)
-    const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
-    //const double C = 0.83e-10;  // Capacità per unità di lunghezza (F/m)
+    //const double L = 2.5e-7;   // Induttanza per unità di lunghezza (H/m)
+    const double L = 9.01e-8; // Induttanza calcolata per avere impedenza 18 ohm e velocità 20cm/ns (H/m)
+    //const double C = 1e-10;  // Capacità per unità di lunghezza (F/m)
+    const double C = 2.78e-10; // Capacità calcolata per avere impedenza 18 ohm e velocità 20cm/ns (F/m)
     #ifdef wLOSS
     const double R = aR;    // Resistenza per unità di lunghezza (Ohm/m) - VALORE ESEMPIO!
     #endif
@@ -114,7 +161,9 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     const double mur_const = (v * dt - dx) / (v * dt + dx); // Costante BC Mur
 
     // --- Parametri Simulazione ---
-    const double T = 2.0 * (length / v); // Max time of computing
+    double T = 0.;
+    if(length<0.8) T = 40.0 * (length / v); // Max time of computing
+    else T = 5.0 * (length/v);
     const int steps = static_cast<int>(T / dt);
     int snapshot_interval = steps / 20; // Salva circa 100 snapshot
     const double output_precision = 1e-4; // Soglia per considerare V trascurabile e terminare programma
@@ -122,10 +171,11 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     // --- Parametri Sorgente RPC Realistica ---
     // !!! QUESTI VALORI SONO ESEMPI - USA VALORI SPECIFICI PER ATLAS RPC !!!
     const double x_source = length / 2.0; // Posizione sorgente (es. 1/3 della lunghezza) (m)
-    const double sigma_x = 20e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
+    const double sigma_x = 5e-3;         // Larghezza spaziale sorgente (es. 3 mm) (m)
     const double t_start = 0.;//10e-9;        // Tempo inizio impulso sorgente (s) (es. 10 ns)
     const double tau = aTau;//0.5e-9;//2.5e-9;           // Costante di tempo impulso (s) (es. 2.5 ns)
-    const double J_peak = -5e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
+    const double aJpeak = -1.*aCharge/(std::sqrt(2*M_PI*sigma_x*sigma_x)*std::sqrt(2*M_PI*tau*tau));
+    const double J_peak = aJpeak;//-7e-3;         // Picco densità corrente [A/m] (SEGNO NEGATIVO = carica indotta) - VALORE DA CALIBRARE!
 
     std::cout << "--- Parametri Simulazione RPC ---" << std::endl;
     std::cout << " N = " << N << ", length = " << length << " m, dx = " << dx << " m" << std::endl;
@@ -171,6 +221,14 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::cout << " threshold : " << threshold << " V " << std::endl;
     std::cout << "----------------------------------" << std::endl;
 
+    // Time smearing
+    double signaljitter = aSignaljitter;
+    double TDCbinsize = aTDCbinsize;
+    std::cout << "--- TDC resolution and time jitter ---" << std::endl;
+    std::cout << " Signal time jitter : " << signaljitter << " s " 
+              << " TDC bin size " << TDCbinsize << " s " << std::endl;
+    std::cout << "----------------------------------" << std::endl;
+
     // Costanti moltiplicative per aggiornamento FDTD
     const double const_I = dt / (L * dx); // dt/(L*dx)
     const double const_V = dt / (C * dx); // dt/(C*dx)
@@ -203,6 +261,38 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     }
     #endif
 
+    // --- Parametri Emulazione Charge Sensitive Amplifier ---
+    const double C_f_CSA = 2e-12;  // Capacità di feedback del CSA [F], ottenuto sapendo che il guadagno è 0.5mV/fC
+    const double tau_CSA = 5.0e-9;  // Costante di tempo di decadimento CSA [s], ottenuto coi dati di BB5
+    const double tau_rise_CSA = 5.0e-9; // Costante di tempo di salita [s]
+    std::cout << "--- Parametri Charge Sensitive Amplifier Emulator ---" << std::endl;
+    std::cout << " C_f_CSA = " << C_f_CSA * 1e12 << " pF, tau_CSA = " << tau_CSA * 1e9 << " ns" << " tau_rise_CSA = "<< tau_rise_CSA * 1e9 << " ns"<< std::endl;
+    std::cout << "----------------------------------" << std::endl;
+    // Variabili per l'uscita del CSA emulato
+    double V_CSA_left = 0.0;  // Uscita del CSA al bordo sinistro
+    double V_CSA_right = 0.0; // Uscita del CSA al bordo destro
+    double V_CSA_left_final = 0.0;  // Uscita finale con tempo di salita finito
+    double V_CSA_right_final = 0.0; // Uscita finale con tempo di salita finito
+    // Vettori per salvare l'uscita del CSA nel tempo (opzionale, per plotting)
+    std::vector<double> V_CSA_left_history;
+    std::vector<double> V_CSA_right_history;
+    std::vector<double> time_history_csa; // Per i tempi corrispondenti
+    // Coefficienti per l'aggiornamento del CSA
+    const double den_CSA = 1.0 + dt / (2.0 * tau_CSA);
+    const double k_CSA1 = (1.0 - dt / (2.0 * tau_CSA)) / den_CSA;
+    const double k_CSA2 = (dt / C_f_CSA) / den_CSA;
+
+    // Scope measurement
+    std::vector<double> V_scope_left_history;
+    std::vector<double> V_scope_right_history;
+    std::vector<double> time_history_scope; // Per i tempi corrispondenti
+
+    // -- Carica totale iniettata --
+    const double  injectedCharge = -1.*J_peak * std::sqrt(2*M_PI*sigma_x*sigma_x) * std::sqrt(2*M_PI*tau*tau); // assuming gaussian temporal shape and spatial shape
+    std::cout<<"--- Charge on strip --"<<std::endl;
+    std::cout<<" injected charge: " << injectedCharge*1e15 << " fC " <<" charge per signal (half): " << injectedCharge*0.5*1e15 << " fC "<< std::endl;
+    std::cout << "----------------------------------" << std::endl;
+
     // --- Loop Temporale FDTD ---
     for (int step = 0; step < steps; ++step) {
 
@@ -227,6 +317,34 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
 
         // Calcola sorgente solo se nel periodo attivo
         if (time_relative > 0) {
+            /* gaussian temporal factor */
+            double temporal_factor = 0.0;
+            double sigma = tau; //1.0e-9;      // larghezza temporale dell'impulso
+            double t0 = 3.0 * sigma; // centro della gaussiana, per avere f(0) ≈ 0
+            double t_rel = time_relative;
+            temporal_factor = std::exp( - std::pow((t_rel - t0), 2) / (2.0 * sigma * sigma) );
+            time_factor.push_back(temporal_factor);
+
+            /* double exponential temporal factor */
+            /*
+            // Doppia esponenziale: salita con tau_r, discesa con tau_d
+            double tau_r = 1.0e-9; // costante di salita (rapida)
+            double tau_d = 1.1e-9; // costante di discesa (lenta)
+            double t_rel = time_relative;
+            double temporal_factor = std::exp(-t_rel / tau_d) - std::exp(-t_rel / tau_r);
+            // Normalizzazione opzionale: portiamo il picco a 1
+            // Picco massimo avviene a t_max = (tau_r * tau_d)/(tau_d - tau_r) * ln(tau_d / tau_r)
+            // Calcoliamo il valore massimo per normalizzare
+            double t_peak = (tau_r * tau_d) / (tau_d - tau_r) * std::log(tau_d / tau_r);
+            double peak_value = std::exp(-t_peak / tau_d) - std::exp(-t_peak / tau_r);
+            if (peak_value > 0.0) {
+               temporal_factor /= peak_value; // normalizza il picco a 1
+            }
+            time_factor.push_back(temporal_factor);
+            */
+
+            /* linear + exponential temporal factor */
+            /*
             // Forma temporale: (t'/tau) * exp(-t'/tau) normalizzata al picco
             // Modifichiamo per avere un integrale definito (carica totale per unità di lunghezza)
             // Usiamo Q_density * (1/tau) * exp(-t'/tau) dove Q_density = J_peak * tau
@@ -244,12 +362,14 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
              temporal_factor *= std::exp(1.0); // Ora il picco è 1
              time_factor.push_back(temporal_factor);
             }
+            */
+            
             int Jsteplimit = 0;
             for (int i = 1; i < N - 1; ++i) {
                 double x = i * dx;
                 double spatial_factor = std::exp(-std::pow((x - x_source), 2) / (2 * sigma_x * sigma_x));
-                Jsteplimit = savegif ? steps : 400;
-                if(step<=Jsteplimit && step % 20 ==0){ 
+                Jsteplimit = savegif ? steps : 2400;
+                if(step<=Jsteplimit && step % 120 ==0){ 
                   J[i] = J_peak * spatial_factor * temporal_factor;
                 }
                 double source_current_density = J_peak * spatial_factor * temporal_factor;
@@ -257,7 +377,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
                 // Applica a V: V_new[i] -= (dt / C) * J(x,t)
                 V_new[i] -= const_Source * source_current_density;
             }
-            if(step<=Jsteplimit && step % 20 ==0) save_profile(J, (step+0.5)*dt, N, dx, "J"); // Passa N e dx
+            if(step<=Jsteplimit && step % 120 ==0) save_profile(J, (step+0.5)*dt, N, dx, "J"); // Passa N e dx
         }
 
         #ifdef MURBC
@@ -296,35 +416,70 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         double t_output = (step + 1) * dt;
         double t_output_forcurrent = (step+0.5) * dt;
 
+        // --- Emulazione Uscita CSA ---
+        // Corrente che entra nel CSA al bordo sinistro (x=0)
+        // I[0] è I_{1/2}, positiva se va a destra. Quindi la corrente IN un CSA a sx è -I[0]
+        double I_strip_left = (N > 0) ? -I_new[0] : 0.0;
+
+        // Corrente che entra nel CSA al bordo destro (x=L, i=N-1)
+        // I[N-2] è I_{N-1/2}, positiva se va a destra. Questa è la corrente IN un CSA a dx.
+        double I_strip_right = (N > 1) ? I_new[N-2] : 0.0;
+
+        V_CSA_left = k_CSA1 * V_CSA_left - k_CSA2 * I_strip_left;
+        V_CSA_right = k_CSA1 * V_CSA_right - k_CSA2 * I_strip_right;
+
+        // Applica il filtro passa-basso per simulare il tempo di salita finito
+        // Discretizzazione di: dV_final/dt = (V_ideal - V_final) / tau_rise
+        if (tau_rise_CSA > 1e-18) { // Evita divisione per zero
+           V_CSA_left_final += (dt / tau_rise_CSA) * (V_CSA_left - V_CSA_left_final);
+           V_CSA_right_final += (dt / tau_rise_CSA) * (V_CSA_right - V_CSA_right_final);
+        } else { // Se tau_rise è zero, l'uscita è istantanea
+           V_CSA_left_final = V_CSA_left;
+           V_CSA_right_final = V_CSA_right;
+        }
+
+        // Salva valori del CSA per plotting (opzionale)
+        // t_output è il tempo alla fine dello step corrente ((step + 1) * dt)
+        V_CSA_left_history.push_back(V_CSA_left_final);
+        V_CSA_right_history.push_back(V_CSA_right_final);
+        time_history_csa.push_back(t_output); // Assicurati che t_output sia definito qui
+
+        // Salva valori per lo scope
+        V_scope_left_history.push_back(V_new[0]);
+        V_scope_right_history.push_back(V_new[N-1]);
+        time_history_scope.push_back(t_output);
+
+        // --- Fine Emulazione Uscita CSA ---
+
         // Controlla arrivo ai bordi (usa V_new appena calcolato)
-        if (!reached_left && std::abs(V_new[0]) >= threshold) { // Usa abs per soglia
+        if (!reached_left && std::abs(V_CSA_left_final) >= threshold) { // Usa abs per soglia
             reached_left = true;
             time_left = t_output;
             // std::cout << "-> Segnale raggiunto bordo sinistro a t = " << t_output*1e9 << " ns" << std::endl;
         }
-        if (!reached_right && std::abs(V_new[N - 1]) >= threshold) { // Usa abs per soglia
+        if (!reached_right && std::abs(V_CSA_right_final) >= threshold) { // Usa abs per soglia
             reached_right = true;
             time_right = t_output;
             // std::cout << "-> Segnale raggiunto bordo destro a t = " << t_output*1e9 << " ns" << std::endl;
         } // fine controllo primo arrivo ai bordi
         
         // Controlla secondo arrivo ai bordi for time-over-threshold
-        if (reached_left && !reached_left_two && std::abs(V_new[0]) <= threshold) {
+        if (reached_left && !reached_left_two && std::abs(V_CSA_left_final) <= threshold) {
             reached_left_two = true;
             time_left_two = t_output;
         }
-        if (reached_right && !reached_right_two && std::abs(V_new[N-1]) <= threshold) {
+        if (reached_right && !reached_right_two && std::abs(V_CSA_right_final) <= threshold) {
             reached_right_two = true;
             time_right_two = t_output;
         }
 
         // Scrivi su file snapshot
-        if (t_output < 1.5*tau && step % 20 == 0){ 
+        if (t_output < 3.0*tau && step % 60 == 0){ 
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
            save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
         }
-        if (savegif == true) snapshot_interval = 20;
-        if ((t_output > 1.5*tau && step % snapshot_interval == 0) || step == steps -1 ) { // Salva anche l'ultimo
+        if (savegif == true) snapshot_interval = 80;
+        if ((t_output > 3.0*tau && step % snapshot_interval == 0) || step == steps -1 ) { // Salva anche l'ultimo
            // std::cout << "Salvataggio snapshot a t = " << t_output*1e9 << " ns (step " << step << ")" << std::endl;
            save_profile(V_new, t_output, N, dx, "rpc_signal"); // Passa N e dx
            save_profile(I_new, t_output_forcurrent, N-1, dx, "I"); // Passa N e dx
@@ -335,7 +490,7 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
         I.swap(I_new);
 
         // Condizione di uscita anticipata (opzionale)
-        if (reached_left && reached_right && step > steps / 2 ) {
+        if (reached_left && reached_right && step > steps / 1 ) { // for the moment let's include all the steps step> steps / 1 (was / 2)
              double max_V_abs = 0.0;
              for(double val : V) { max_V_abs = std::max(max_V_abs, std::abs(val)); }
              if (max_V_abs < output_precision) {
@@ -352,7 +507,9 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     } // Fine loop temporale
 
     save_timefactor(time_factor, dt);
-
+    save_csa_output(time_history_csa, V_CSA_left_history, V_CSA_right_history);
+    save_scope_output(time_history_scope, V_scope_left_history, V_scope_right_history);
+    
     std::cout << "\n--- Risultati Rilevamento Bordi ---" << std::endl;
     if (time_left > 0)
        std::cout << "Tempo di arrivo a sinistra: " << time_left * 1e9 << " ns\n";
@@ -373,25 +530,93 @@ void process_rpc_signal(double aLength, int aN, [[maybe_unused]] double aR, doub
     std::cout << "Velocità teorica di propagazione: " << v << " m/s\n";
 
     rpcoutput thisOutput;
-    thisOutput.add_metadata(length, N, R, tau, threshold);
+    thisOutput.add_metadata(length, N, R, tau, threshold, J_peak, signaljitter, TDCbinsize, aCharge);
+    std::random_device rd;  // Non-deterministic seed
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    std::normal_distribution<double> dist(0., signaljitter);
+    // If signaljitter > 0 add it to time
+    if (signaljitter > 0.){
+        time_left = time_left + dist(gen);
+        time_right = time_right + dist(gen);
+        time_left_two = time_left_two + dist(gen);
+        time_right_two = time_right_two + dist(gen);
+    }
+    std::uniform_real_distribution<double> uniform_dist(-TDCbinsize/2., TDCbinsize/2.);
+    if(TDCbinsize > 0.){
+        time_left = (std::round(time_left / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        time_right = (std::round(time_right / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        time_left_two = (std::round(time_left_two / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        time_right_two = (std::round(time_right_two / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+    }
     thisOutput.add_output(time_left, time_right, time_left_two-time_left, time_right_two-time_right);
     thisOutput.set_filename(output_name);
     thisOutput.rpcoutput_tofile(append_output);
 
 }
 
+void parametrized_rpc(double aX, double aLength, double aChargeFraction, double signaljitter, double TDCbinsize, int NumberOfEvents){
+
+    std::cout<<"Using parametrized rpc"<<std::endl;
+
+    // this method uses parameterized TOA and TOT values,
+    // add the effect of the signal jitter and TDC resolution
+    // in order to study the effect on the phi resolution
+    //
+    std::random_device rd;  // Non-deterministic seed
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    std::normal_distribution<double> dist(0., signaljitter);
+    std::uniform_real_distribution<double> uniform_dist(-TDCbinsize/2., TDCbinsize/2.);
+
+    const double v = 0.23e9; // m/s
+    const double dist_left = aX;
+    const double dist_right = aLength-aX;
+    double X_meas = 0.0;
+
+    std::ostringstream filename;
+    filename << "secondcoordinate" << std::to_string(aX) << "_" <<std::to_string(signaljitter)<<"_"<<std::to_string(TDCbinsize)<<".txt";
+    std::ofstream out(filename.str());
+     if (!out) {
+        std::cerr << "Error while opening the file: " << filename.str() << std::endl;
+        return;
+    }
+    out << std::fixed << std::setprecision(6);
+    out <<" X_real (m) "<<" X_meas (m) "<< " jitter (ns) "<< " TDC size (ns) "<<std::endl;
+
+
+    for(std::size_t i=0;i<NumberOfEvents; i++){
+      
+        double TOA_left = 5.9966*dist_left+0.3369*aChargeFraction-0.4742*std::pow(dist_left,2)-0.7377*dist_left*aChargeFraction - 0.2242*std::pow(aChargeFraction,2);
+        double TOA_right = 5.9966*dist_right+0.3369*aChargeFraction-0.4742*std::pow(dist_right,2)-0.7377*dist_right*aChargeFraction - 0.2242*std::pow(aChargeFraction,2);
+        if (signaljitter > 0.){
+           TOA_left = TOA_left + dist(gen);
+           TOA_right = TOA_right + dist(gen);
+        }
+        if(TDCbinsize > 0.){
+           TOA_left = (std::round(TOA_left / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+           TOA_right = (std::round(TOA_right / TDCbinsize) * TDCbinsize) + uniform_dist(gen);
+        }
+        X_meas = 1. + ((TOA_left/1e9-TOA_right/1e9)*v)/2. + aLength/v; //m
+        std::cout<<"aX "<<aX<<" m "<<X_meas<<" m "<<std::endl;
+        out << aX << "\t" << X_meas << "\t" << signaljitter << "\t" << TDCbinsize << "\n";
+    }
+}
+
 void print_usage(const char* progName) {
-    std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)]\n"
+    std::cout << "Uso: " << progName << " [--aLength valore (m)] [--aN valore] [--aR valore (ohm/m)] [--aTau valore (s)] [--aThreshold valore (V)] [--aChargeOnStrip valore (fC)]\n"
               << "Tutti i parametri sono opzionali e hanno dei valori di default.\n";
 }
 
 int main(int argc, char* argv[]) {
     // Valori di default
-    double aLength = 2.0;
+    double aLength = 2.0; // m
     int aN = 4000;
-    double aR = 1.0;
-    double aTau = 0.5e-9;
-    double aThreshold = 0.001;
+    double aR = 0.02; // Ohm/m
+    double aTau = 0.6e-9; // s
+    double aThreshold = 0.0005; // V
+    double aJpeak = -7e-3; // A/m //not used anymore, deprecated. It is calculated inside process_rpc_signal()
+    double aChargeOnStrip = 131.947e-15; // C (this is the total charge on strip that creates two signals)
+    double signaljitter = 0.0;//8e-9; // s
+    double TDCbinsize = 0.0;//8e-9; // s
 
     // Parsing degli argomenti
     for (int i = 1; i < argc; ++i) {
@@ -410,40 +635,68 @@ int main(int argc, char* argv[]) {
             aTau = atof(argv[++i]);
         } else if (arg == "--aThreshold" && i + 1 < argc) {
             aThreshold = atof(argv[++i]);
-        } else {
+        } else if (arg == "--aCharge" && i + 1 < argc) {
+            aChargeOnStrip = atof(argv[++i]);
+            aChargeOnStrip = aChargeOnStrip*1e-15;
+        } else if (arg == "--aJitter" && i + 1 < argc) {
+            signaljitter = atof(argv[++i]);
+        } else if (arg == "--aTDCbin" && i + 1 < argc) {
+            TDCbinsize = atof(argv[++i]);
+        } 
+        else {
             std::cerr << "Argomento non riconosciuto o mancante valore: " << arg << "\n";
             print_usage(argv[0]);
             return 1;
         }
     }
 
-    process_rpc_signal(aLength, aN, aR, aTau, aThreshold);
+   //parametrized_rpc(1.5, aLength, 1.0, 0.08, 0.08, 1000);
+
+   //process_rpc_signal(aLength, aN, aR, aTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize);
 
     std::string outputname;    
     // Study behaviour as a function of threshold
-  /*   outputname = "threshold.txt";
+    /*outputname = "threshold.txt";
     for(std::size_t i=0; i<10; i++){
         double newThreshold = 0.001 + i*0.0005; // V
-        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, outputname);
-        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, outputname, true);
-    }
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, newThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname, true);
+    }*/
 
     // Study behaviour as a function of tau
-    outputname = "tau.txt";
+    /*outputname = "tau.txt";
     for(std::size_t i=0; i<30; i++){
         double newTau = 0.1e-9 + i*0.05e-9; // s
-        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname);
-        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, outputname, true);
-    }
+        if(i==0) process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, newTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname, true);
+    }*/
 
     // Study behaviour as a function of length
-    outputname = "length.txt";
+    /*outputname = "length.txt";
     for(std::size_t i=0; i<40; i++){
         double newLength = 1.0 + i*0.1; // m
-        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname);
-        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, outputname, true);
+        if(i==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, aChargeOnStrip, signaljitter, TDCbinsize, outputname, true);
+    }*/
+    
+    // Study behaviour as a function of Jpeak
+    /*outputname = "jpeak.txt";
+    for(std::size_t i=0; i<17; i++){
+        double newCharge = 4*13.1947e-15 + i*13.1947e-15; // C
+        if(i==0) process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname);
+        else process_rpc_signal(aLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname, true);
+    }*/
+
+    // Study behaviour as a function ok Jpeak and Length
+    outputname = "jpeak_length.txt";
+    for(std::size_t i=0; i<17; i++){
+        double newCharge = 4*13.1947e-15 + i*13.1947e-15; // C
+        for(std::size_t j=0; j<40; j++){
+            double newLength = 0.1 + j*0.1; // m
+            if(i==0 && j==0) process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname);
+            else process_rpc_signal(newLength, aN, aR, aTau, aThreshold, newCharge, signaljitter, TDCbinsize, outputname, true);
+        }
     }
 
-    */
     return 0;
 }

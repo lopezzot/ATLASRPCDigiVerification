@@ -9,9 +9,10 @@ V = data[:, 7]
 Y = data[:, 5]
 
 plt.figure(figsize=(10, 6))
-plt.plot(x, V)
+half_x = [i/2 for i in x]
+plt.plot(half_x, V)
 
-plt.xlabel("Length (m)")
+plt.xlabel("Distance to edge (m)")
 plt.ylabel("Time over threshold (ns) [left boundary]")
 plt.title("Time over threshold as a function of the strip length")
 plt.grid(True)
@@ -19,9 +20,9 @@ plt.tight_layout()
 plt.show()
 
 plt.figure(figsize=(10, 6))
-plt.plot(x, Y)
+plt.plot(half_x, Y)
 
-plt.xlabel("Length (m)")
+plt.xlabel("Distance to edge (m)")
 plt.ylabel("Time of arrival (ns) [left boundary]")
 plt.title("Time of arrival as a function of the strip length")
 plt.grid(True)

@@ -19,6 +19,7 @@ for f in files:
     V = data[:, 1]
     plt.plot(x, V, label=f'{time_ns:.5f} ns')
 
+plt.xlim(0.75, 1.25)
 plt.xlabel("Strip position (m)")
 plt.ylabel("Current density (A/m)")
 plt.title("RPC Current density evolution from a spark only")
